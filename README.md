@@ -6,10 +6,11 @@ Chrome extension that helps you write professional, tactful business messages in
 
 - Floating ✉ button when you focus a message field
 - 3-step conversational intake (intent → situation → relationship)
-- GPT-4o-mini drafts with formal / shorter / softer variants
+- AI-powered drafts with formal / shorter / softer variants
+- **Multiple AI providers** — Claude (default), Gemini, or OpenAI
 - One-tap **Copy** or **Insert** into the active field
 - Optional fine-tune without restarting the flow
-- Options page for API key, default tone, and per-site toggles
+- Options page for provider, API key, default tone, and per-site toggles
 
 ## Install (unpacked)
 
@@ -17,7 +18,17 @@ Chrome extension that helps you write professional, tactful business messages in
 2. Enable **Developer mode**
 3. Click **Load unpacked**
 4. Select this `tonedesk` folder
-5. Open **ToneDesk Settings** and paste your OpenAI API key
+5. Open **ToneDesk Settings**, choose your AI provider (Claude is default), and paste your API key
+
+## AI providers
+
+| Provider | Default model | API key from |
+|----------|---------------|--------------|
+| **Claude (Anthropic)** — default | claude-sonnet-4 | [console.anthropic.com](https://console.anthropic.com/) |
+| Gemini (Google) | gemini-2.0-flash | [aistudio.google.com](https://aistudio.google.com/) |
+| OpenAI | gpt-4o-mini | [platform.openai.com](https://platform.openai.com/) |
+
+Each provider stores its own API key locally. If you previously saved an OpenAI key, it remains available when you select OpenAI.
 
 ## Use
 
@@ -30,6 +41,6 @@ Chrome extension that helps you write professional, tactful business messages in
 ## Permissions
 
 - `activeTab`, `scripting`, `storage`, `clipboardWrite`, `sidePanel`
-- Host access for Gmail, LinkedIn, Slack, WhatsApp Web, and `api.openai.com`
+- Host access for Gmail, LinkedIn, Slack, WhatsApp Web, and AI provider APIs (`api.anthropic.com`, `generativelanguage.googleapis.com`, `api.openai.com`)
 
 API keys are stored only in `chrome.storage.local`. No accounts, history, or analytics.

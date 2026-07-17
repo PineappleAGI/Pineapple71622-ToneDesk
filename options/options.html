@@ -12,14 +12,42 @@
       <div class="mark" aria-hidden="true">✉</div>
       <div>
         <h1>ToneDesk Settings</h1>
-        <p>Configure your API key, default tone, and which sites show the assistant.</p>
+        <p>Choose your AI provider, add API keys, set a default tone, and pick which sites show the assistant.</p>
       </div>
     </header>
 
     <form id="settings-form" class="card">
-      <label class="field-label" for="api-key">OpenAI API key</label>
-      <input id="api-key" name="apiKey" type="password" autocomplete="off" placeholder="sk-..." />
-      <p class="help">Stored locally in your browser. Never synced or logged by ToneDesk.</p>
+      <label class="field-label" for="provider">AI provider</label>
+      <select id="provider" name="provider">
+        <option value="claude">Claude (Anthropic)</option>
+        <option value="openai">OpenAI</option>
+        <option value="gemini">Gemini (Google)</option>
+      </select>
+      <p class="help">Claude is the default. Switch anytime — each provider keeps its own API key.</p>
+
+      <fieldset class="keys">
+        <legend>API keys</legend>
+
+        <div class="key-field" data-provider="claude">
+          <label class="field-label" for="key-claude">Anthropic API key</label>
+          <input id="key-claude" name="keyClaude" type="password" autocomplete="off" placeholder="sk-ant-..." />
+          <p class="help">Get a key at <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener noreferrer">console.anthropic.com</a></p>
+        </div>
+
+        <div class="key-field" data-provider="openai">
+          <label class="field-label" for="key-openai">OpenAI API key</label>
+          <input id="key-openai" name="keyOpenai" type="password" autocomplete="off" placeholder="sk-..." />
+          <p class="help">Get a key at <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer">platform.openai.com</a></p>
+        </div>
+
+        <div class="key-field" data-provider="gemini">
+          <label class="field-label" for="key-gemini">Google AI API key</label>
+          <input id="key-gemini" name="keyGemini" type="password" autocomplete="off" placeholder="AIza..." />
+          <p class="help">Get a key at <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer">aistudio.google.com</a></p>
+        </div>
+      </fieldset>
+
+      <p class="help storage-note">All keys are stored locally in your browser. Never synced or logged by ToneDesk.</p>
 
       <label class="field-label" for="tone">Default tone preference</label>
       <select id="tone" name="tonePreference">

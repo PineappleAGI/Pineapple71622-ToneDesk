@@ -1,4 +1,5 @@
-import { getSettings, platformLabel } from "../shared/storage.js";
+import { getSettings, getActiveApiKey, platformLabel } from "../shared/storage.js";
+import { normalizeProvider, PROVIDER_LABELS } from "../shared/ai.js";
 
 const INTENT_OPTIONS = [
   { id: "reply", label: "💬 Reply to a message" },
@@ -79,8 +80,8 @@ async function init() {
     render();
   });
 
-  if (!settings.apiKey) {
-    renderMissingKey();
+  if (!getActiveApiKey(settings)) {
+    renderMissingKey(settings);
     return;
   }
 
@@ -92,12 +93,14 @@ function guessPlatformFromQuery() {
   return params.get("platform") || null;
 }
 
-function renderMissingKey() {
+function renderMissingKey(settings) {
+  const provider = normalizeProvider(settings.provider);
+  const label = PROVIDER_LABELS[provider] || provider;
   restartBtn.hidden = true;
   main.innerHTML = `
     <section class="empty-state step">
       <h2 class="question">Add your API key</h2>
-      <p>ToneDesk uses OpenAI to draft messages. Add your key once in settings, then come back here.</p>
+      <p>ToneDesk uses ${label} to draft messages. Add your key in settings, then come back here.</p>
       <div class="actions">
         <button type="button" class="btn btn-primary" id="open-settings">Open settings</button>
       </div>
@@ -251,6 +254,7 @@ async function generateDraft({ variant = null, fineTune = null } = {}) {
     intent: labelFor(INTENT_OPTIONS, state.intent) || state.intent,
     situation: labelFor(SITUATION_OPTIONS, state.situation) || state.situation,
     relationship: labelFor(RELATIONSHIP_OPTIONS, state.relationship) || state.relationship,
+    relationshipId: state.relationship,
     fineTune: fineTune ?? state.fineTune,
     variant
   };

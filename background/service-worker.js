@@ -1,5 +1,6 @@
-import { SYSTEM_PROMPT, buildUserPrompt } from "../shared/prompts.js";
-import { getSettings, saveSettings, detectPlatform } from "../shared/storage.js";
+import { buildUserPrompt } from "../shared/prompts.js";
+import { generateMessage, normalizeProvider, PROVIDER_LABELS } from "../shared/ai.js";
+import { getSettings, saveSettings, detectPlatform, getActiveApiKey } from "../shared/storage.js";
 
 chrome.runtime.onInstalled.addListener(() => {
   chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch(() => {});
@@ -71,20 +72,15 @@ async function handleMessage(message, sender) {
 
     case "GENERATE_DRAFT": {
       const settings = await getSettings();
-      if (!settings.apiKey) {
-        throw new Error("Add your OpenAI API key in ToneDesk settings first.");
-      }
+      const draft = await generateDraft(settings, buildUserPrompt({
+        ...message.payload,
+        tonePreference: settings.tonePreference
+      }));
 
-      const draft = await callOpenAI({
-        apiKey: settings.apiKey,
-        userPrompt: buildUserPrompt({
-          ...message.payload,
-          tonePreference: settings.tonePreference
-        })
-      });
-
-      if (message.payload?.relationship) {
-        await saveSettings({ lastRelationship: message.payload.relationship });
+      if (message.payload?.relationshipId || message.payload?.relationship) {
+        await saveSettings({
+          lastRelationship: message.payload.relationshipId || message.payload.relationship
+        });
       }
 
       return { ok: true, draft };
@@ -92,18 +88,11 @@ async function handleMessage(message, sender) {
 
     case "GENERATE_VARIANT": {
       const settings = await getSettings();
-      if (!settings.apiKey) {
-        throw new Error("Add your OpenAI API key in ToneDesk settings first.");
-      }
-
-      const draft = await callOpenAI({
-        apiKey: settings.apiKey,
-        userPrompt: buildUserPrompt({
-          ...message.payload,
-          tonePreference: settings.tonePreference,
-          variant: message.payload.variant
-        })
-      });
+      const draft = await generateDraft(settings, buildUserPrompt({
+        ...message.payload,
+        tonePreference: settings.tonePreference,
+        variant: message.payload.variant
+      }));
 
       return { ok: true, draft };
     }
@@ -124,7 +113,6 @@ async function handleMessage(message, sender) {
           await chrome.tabs.sendMessage(tabId, payload);
         }
       } catch {
-        // Fallback: try top frame if the original compose iframe is gone
         await chrome.tabs.sendMessage(tabId, payload);
       }
       return { ok: true };
@@ -143,36 +131,14 @@ async function getActiveTabId() {
   return tab?.id;
 }
 
-async function callOpenAI({ apiKey, userPrompt }) {
-  const response = await fetch("https://api.openai.com/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${apiKey}`
-    },
-    body: JSON.stringify({
-      model: "gpt-4o-mini",
-      temperature: 0.7,
-      messages: [
-        { role: "system", content: SYSTEM_PROMPT },
-        { role: "user", content: userPrompt }
-      ]
-    })
-  });
+async function generateDraft(settings, userPrompt) {
+  const provider = normalizeProvider(settings.provider);
+  const apiKey = getActiveApiKey(settings);
 
-  if (!response.ok) {
-    let detail = "";
-    try {
-      const err = await response.json();
-      detail = err?.error?.message || "";
-    } catch {
-      /* ignore */
-    }
-    throw new Error(detail || `OpenAI request failed (${response.status})`);
+  if (!apiKey) {
+    const label = PROVIDER_LABELS[provider] || provider;
+    throw new Error(`Add your ${label} API key in ToneDesk settings first.`);
   }
 
-  const data = await response.json();
-  const text = data?.choices?.[0]?.message?.content?.trim();
-  if (!text) throw new Error("No draft returned from the model.");
-  return text;
+  return generateMessage({ provider, apiKey, userPrompt });
 }

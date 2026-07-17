@@ -192,9 +192,20 @@
     }
   }
 
+  function getOverlayHost() {
+    try {
+      return window.top?.document?.documentElement || document.documentElement;
+    } catch {
+      return document.documentElement;
+    }
+  }
+
   function openOverlay() {
-    if (overlayRoot) {
-      overlayRoot.classList.add("tonedesk-open");
+    const host = getOverlayHost();
+    const existing = host.querySelector("#tonedesk-overlay");
+    if (existing) {
+      existing.classList.add("tonedesk-open");
+      overlayRoot = existing;
       return;
     }
 
@@ -207,15 +218,17 @@
       </div>
     `;
     overlayRoot.querySelector("[data-close]").addEventListener("click", closeOverlay);
-    document.documentElement.appendChild(overlayRoot);
+    host.appendChild(overlayRoot);
     requestAnimationFrame(() => overlayRoot.classList.add("tonedesk-open"));
   }
 
   function closeOverlay() {
-    if (!overlayRoot) return;
-    overlayRoot.classList.remove("tonedesk-open");
+    const host = getOverlayHost();
+    const node = overlayRoot || host.querySelector("#tonedesk-overlay");
+    if (!node) return;
+    node.classList.remove("tonedesk-open");
     setTimeout(() => {
-      overlayRoot?.remove();
+      node.remove();
       overlayRoot = null;
     }, 220);
   }
@@ -292,6 +305,9 @@
   }
 
   async function maybeShowFirstTooltip() {
+    // Avoid stacking tooltips from every iframe
+    if (window !== window.top) return;
+
     const settings = settingsCache || (await requestSettings());
     if (!settings || settings.hasSeenTooltip) return;
 

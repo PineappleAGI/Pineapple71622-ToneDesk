@@ -100,6 +100,37 @@ select:focus {
   font-size: 12px;
 }
 
+.help a {
+  color: var(--navy);
+}
+
+.storage-note {
+  margin-top: -8px;
+}
+
+.keys {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px 14px 4px;
+  margin: 0 0 18px;
+}
+
+.key-field {
+  margin-bottom: 12px;
+  padding: 10px;
+  border-radius: 10px;
+  border: 1px solid transparent;
+}
+
+.key-field.active {
+  border-color: rgba(27, 58, 92, 0.18);
+  background: rgba(27, 58, 92, 0.04);
+}
+
+.key-field .help {
+  margin-bottom: 0;
+}
+
 .sites {
   border: 1px solid var(--border);
   border-radius: 12px;
