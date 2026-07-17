@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ToneDesk Settings</title>
+  <link rel="stylesheet" href="options.css" />
+</head>
+<body>
+  <main class="wrap">
+    <header class="hero">
+      <div class="mark" aria-hidden="true">✉</div>
+      <div>
+        <h1>ToneDesk Settings</h1>
+        <p>Configure your API key, default tone, and which sites show the assistant.</p>
+      </div>
+    </header>
+
+    <form id="settings-form" class="card">
+      <label class="field-label" for="api-key">OpenAI API key</label>
+      <input id="api-key" name="apiKey" type="password" autocomplete="off" placeholder="sk-..." />
+      <p class="help">Stored locally in your browser. Never synced or logged by ToneDesk.</p>
+
+      <label class="field-label" for="tone">Default tone preference</label>
+      <select id="tone" name="tonePreference">
+        <option value="formal">Formal</option>
+        <option value="balanced" selected>Balanced</option>
+        <option value="warm">Warm</option>
+      </select>
+
+      <fieldset class="sites">
+        <legend>Enable on sites</legend>
+        <label><input type="checkbox" name="gmail" checked /> Gmail</label>
+        <label><input type="checkbox" name="linkedin" checked /> LinkedIn</label>
+        <label><input type="checkbox" name="slack" checked /> Slack (web)</label>
+        <label><input type="checkbox" name="whatsapp" checked /> WhatsApp Web</label>
+      </fieldset>
+
+      <div class="row">
+        <button type="submit" class="btn">Save settings</button>
+        <span id="status" class="status" role="status"></span>
+      </div>
+    </form>
+  </main>
+  <script type="module" src="options.js"></script>
+</body>
+</html>

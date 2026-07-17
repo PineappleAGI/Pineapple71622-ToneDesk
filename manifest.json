@@ -1,0 +1,68 @@
+{
+  "manifest_version": 3,
+  "name": "ToneDesk",
+  "version": "1.0.0",
+  "description": "Write professional, tactful business messages in Gmail, LinkedIn, Slack, and WhatsApp Web.",
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "storage",
+    "clipboardWrite",
+    "sidePanel"
+  ],
+  "host_permissions": [
+    "https://mail.google.com/*",
+    "https://*.linkedin.com/*",
+    "https://web.whatsapp.com/*",
+    "https://app.slack.com/*",
+    "https://api.openai.com/*"
+  ],
+  "background": {
+    "service_worker": "background/service-worker.js",
+    "type": "module"
+  },
+  "side_panel": {
+    "default_path": "panel/panel.html"
+  },
+  "options_page": "options/options.html",
+  "action": {
+    "default_title": "ToneDesk",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://mail.google.com/*",
+        "https://*.linkedin.com/*",
+        "https://web.whatsapp.com/*",
+        "https://app.slack.com/*"
+      ],
+      "js": ["content/content.js"],
+      "css": ["content/content.css"],
+      "run_at": "document_idle",
+      "all_frames": true
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["panel/panel.html", "panel/panel.css", "panel/panel.js", "shared/*", "icons/*"],
+      "matches": [
+        "https://mail.google.com/*",
+        "https://*.linkedin.com/*",
+        "https://web.whatsapp.com/*",
+        "https://app.slack.com/*"
+      ]
+    }
+  ]
+}

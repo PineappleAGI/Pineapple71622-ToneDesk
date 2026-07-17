@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ToneDesk</title>
+  <link rel="stylesheet" href="panel.css" />
+</head>
+<body>
+  <div id="app" class="app">
+    <header class="header">
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true">✉</span>
+        <div>
+          <h1>ToneDesk</h1>
+          <p id="platform-label" class="subtitle">Business message coach</p>
+        </div>
+      </div>
+      <button type="button" id="btn-settings" class="icon-btn" title="Settings" aria-label="Open settings">⚙</button>
+    </header>
+
+    <main id="main" class="main"></main>
+
+    <footer class="footer">
+      <button type="button" id="btn-restart" class="link-btn" hidden>Start over</button>
+    </footer>
+  </div>
+
+  <script type="module" src="panel.js"></script>
+</body>
+</html>
