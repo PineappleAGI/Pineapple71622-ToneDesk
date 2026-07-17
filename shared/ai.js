@@ -3,8 +3,10 @@ import { SYSTEM_PROMPT, SUMMARIZE_SYSTEM_PROMPT } from "./prompts.js";
 export const PROVIDER_MODELS = {
   claude: "claude-sonnet-4-20250514",
   openai: "gpt-4o-mini",
-  gemini: "gemini-2.5-flash"
+  gemini: "gemini-2.5-flash-lite"
 };
+
+const GEMINI_FALLBACK_MODELS = ["gemini-flash-lite-latest", "gemini-flash-latest"];
 
 export const PROVIDER_LABELS = {
   claude: "Claude (Anthropic)",
@@ -93,30 +95,50 @@ async function callClaude({ apiKey, userPrompt, systemPrompt }) {
 }
 
 async function callGemini({ apiKey, userPrompt, systemPrompt }) {
-  const model = PROVIDER_MODELS.gemini;
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(apiKey)}`;
+  const models = [PROVIDER_MODELS.gemini, ...GEMINI_FALLBACK_MODELS];
 
-  const response = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      systemInstruction: { parts: [{ text: systemPrompt }] },
-      contents: [{ role: "user", parts: [{ text: userPrompt }] }],
-      generationConfig: { temperature: 0.5 }
-    })
-  });
+  for (let i = 0; i < models.length; i++) {
+    const model = models[i];
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(apiKey)}`;
 
-  if (!response.ok) {
-    throw new Error(await extractError(response, "Gemini"));
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        systemInstruction: { parts: [{ text: systemPrompt }] },
+        contents: [{ role: "user", parts: [{ text: userPrompt }] }],
+        generationConfig: { temperature: 0.5 }
+      })
+    });
+
+    if (response.ok) {
+      const data = await response.json();
+      const text = data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
+      if (!text) throw new Error("No response returned from the model.");
+      return text;
+    }
+
+    const { detail, status } = await readErrorBody(response);
+    const canRetry = i < models.length - 1 && isGeminiModelUnavailable(detail, status);
+    if (!canRetry) {
+      throw new Error(formatProviderErrorMessage("Gemini", detail, status));
+    }
   }
 
-  const data = await response.json();
-  const text = data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
-  if (!text) throw new Error("No response returned from the model.");
-  return text;
+  throw new Error("Gemini request failed.");
 }
 
-async function extractError(response, providerName) {
+function isGeminiModelUnavailable(detail, status) {
+  const lower = (detail || "").toLowerCase();
+  return (
+    status === 404 ||
+    lower.includes("no longer available") ||
+    lower.includes("not found") ||
+    lower.includes("is not supported")
+  );
+}
+
+async function readErrorBody(response) {
   let detail = "";
   try {
     const err = await response.json();
@@ -128,9 +150,17 @@ async function extractError(response, providerName) {
   } catch {
     /* ignore */
   }
+  return { detail, status: response.status };
+}
 
-  const friendly = formatProviderError(providerName, detail, response.status);
-  return friendly || detail || `${providerName} request failed (${response.status})`;
+function formatProviderErrorMessage(providerName, detail, status) {
+  const friendly = formatProviderError(providerName, detail, status);
+  return friendly || detail || `${providerName} request failed (${status})`;
+}
+
+async function extractError(response, providerName) {
+  const { detail, status } = await readErrorBody(response);
+  return formatProviderErrorMessage(providerName, detail, status);
 }
 
 function formatProviderError(providerName, detail, status) {
