@@ -385,6 +385,34 @@ textarea {
   font-weight: 600;
 }
 
+.notice-banner {
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  font-size: 12px;
+  line-height: 1.45;
+  background: #fff8e6;
+  border: 1px solid #f0d998;
+  color: #6b4f00;
+}
+
+.notice-banner.quota {
+  background: #fef3f2;
+  border-color: #fecdca;
+  color: #912018;
+}
+
+.notice-banner a {
+  color: inherit;
+  font-weight: 600;
+}
+
+.notice-banner.offline {
+  background: var(--navy-soft);
+  border-color: #c5d4e4;
+  color: var(--navy);
+}
+
 .loading-dot::after {
   content: "";
   display: inline-block;

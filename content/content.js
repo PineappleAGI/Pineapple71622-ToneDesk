@@ -176,27 +176,61 @@
       readInputValue('[aria-label="Subject"]') ||
       readInputValue('[placeholder="Subject"]') ||
       textFromSelector("h2.hP") ||
+      textFromSelector(".hP") ||
+      textFromSelector('[data-thread-perm-id]') ||
       "";
 
     const threadParts = [];
-    const messageBodies = document.querySelectorAll(".a3s.aiL, .a3s");
-    messageBodies.forEach((node, i) => {
-      if (node.closest('[role="dialog"]')) return;
-      const text = cleanText(node.innerText || node.textContent);
-      if (text.length > 20) threadParts.push(text);
-    });
+    const seen = new Set();
 
-    if (threadParts.length === 0) {
-      document.querySelectorAll(".gs .gE.iv.gt, .adn.ads").forEach((node) => {
-        const text = cleanText(node.innerText || node.textContent);
-        if (text.length > 30) threadParts.push(text);
+    function addThreadText(text) {
+      const cleaned = cleanText(text);
+      if (cleaned.length < 15) return;
+      const key = cleaned.slice(0, 100);
+      if (seen.has(key)) return;
+      seen.add(key);
+      threadParts.push(cleaned);
+    }
+
+    const bodySelectors = [
+      ".a3s.aiL",
+      ".a3s",
+      "div[data-message-id] .ii.gt",
+      "div[data-message-id] .a3s",
+      "[role=\"listitem\"] .a3s",
+      "[data-legacy-message-id] .a3s",
+      ".gs .gE.iv.gt"
+    ];
+
+    for (const selector of bodySelectors) {
+      document.querySelectorAll(selector).forEach((node) => {
+        if (node.closest('[role="dialog"]')) return;
+        addThreadText(node.innerText || node.textContent);
       });
     }
+
+    if (threadParts.length === 0) {
+      document.querySelectorAll(".adn.ads, .kv.bg, .gmail_default").forEach((node) => {
+        if (node.closest('[role="dialog"]')) return;
+        addThreadText(node.innerText || node.textContent);
+      });
+    }
+
+    document.querySelectorAll("div[data-message-id]").forEach((msgEl) => {
+      if (msgEl.closest('[role="dialog"]')) return;
+      const header = msgEl.querySelector(".gD, .go, .gE");
+      const body = msgEl.querySelector(".a3s, .ii.gt");
+      const headerText = header ? cleanText(header.innerText || header.textContent) : "";
+      const bodyText = body ? cleanText(body.innerText || body.textContent) : "";
+      if (bodyText.length > 15) {
+        addThreadText(headerText ? `${headerText}\n${bodyText}` : bodyText);
+      }
+    });
 
     const quoted = document.querySelectorAll(".gmail_quote, blockquote");
     quoted.forEach((node) => {
       const text = cleanText(node.innerText || node.textContent);
-      if (text.length > 40) threadParts.push(`[Quoted reply]\n${text}`);
+      if (text.length > 40) addThreadText(`[Quoted reply]\n${text}`);
     });
 
     const composeEl =

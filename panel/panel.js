@@ -1,11 +1,13 @@
-import { getSettings, getActiveApiKey, platformLabel } from "../shared/storage.js";
-import { normalizeProvider, PROVIDER_LABELS } from "../shared/ai.js";
+import { getSettings, platformLabel } from "../shared/storage.js";
+import { buildHeuristicSummary } from "../shared/offline.js";
 
 const VARIANT_CHIPS = [
   { id: "formal", label: "More formal" },
   { id: "shorter", label: "Shorter" },
   { id: "softer", label: "Softer" }
 ];
+
+const SUMMARIZE_CLIENT_TIMEOUT_MS = 10000;
 
 const state = {
   step: "loading",
@@ -21,7 +23,10 @@ const state = {
   fineTune: "",
   loading: false,
   status: "",
-  statusType: ""
+  statusType: "",
+  notice: "",
+  offlineMode: false,
+  quotaError: false
 };
 
 const main = document.getElementById("main");
@@ -52,11 +57,6 @@ async function init() {
     startContextFlow();
   });
 
-  if (!getActiveApiKey(settings)) {
-    renderMissingKey(settings);
-    return;
-  }
-
   startContextFlow();
 }
 
@@ -70,6 +70,9 @@ function resetFlow() {
   state.fineTune = "";
   state.status = "";
   state.statusType = "";
+  state.notice = "";
+  state.offlineMode = false;
+  state.quotaError = false;
   state.loading = false;
 }
 
@@ -78,73 +81,87 @@ function guessPlatformFromQuery() {
   return params.get("platform") || null;
 }
 
-function renderMissingKey(settings) {
-  const provider = normalizeProvider(settings.provider);
-  const label = PROVIDER_LABELS[provider] || provider;
-  const geminiLink =
-    '<a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer">Google AI Studio</a>';
-
-  let message;
-  if (provider === "gemini") {
-    message = `
-      <p>Get a <strong>free</strong> Gemini API key from ${geminiLink}, paste it in settings, then come back here.</p>
-      <p class="hint">The free tier has rate limits — enough for everyday message drafting.</p>
-    `;
-  } else {
-    message = `
-      <p>ToneDesk is set to ${label}. Add your API key in settings, or switch to <strong>Gemini</strong> for a free tier via ${geminiLink}.</p>
-      <p class="hint">Claude and OpenAI typically require paid API keys.</p>
-    `;
-  }
-
-  restartBtn.hidden = true;
-  main.innerHTML = `
-    <section class="empty-state step">
-      <h2 class="question">Add your API key</h2>
-      ${message}
-      <div class="actions">
-        <button type="button" class="btn btn-primary" id="open-settings">Open settings</button>
-      </div>
-    </section>
-  `;
-  main.querySelector("#open-settings").addEventListener("click", () => {
-    chrome.runtime.openOptionsPage();
-  });
-}
-
 async function startContextFlow() {
   state.step = "loading";
   state.loading = true;
+  state.notice = "";
   render();
 
   try {
-    const res = await sendMessage({
-      type: "SUMMARIZE_CONTEXT",
-      tabId: state.tabId,
-      pageContext: state.pageContext
-    });
+    const res = await withTimeout(
+      sendMessage({
+        type: "SUMMARIZE_CONTEXT",
+        tabId: state.tabId,
+        pageContext: state.pageContext
+      }),
+      SUMMARIZE_CLIENT_TIMEOUT_MS
+    );
 
     if (!res?.ok) throw new Error(res?.error || "Could not read page context");
 
-    state.pageContext = res.pageContext || state.pageContext;
-    state.inferredIntent = res.intent || "";
-    state.inferredRelationship = res.relationship || state.inferredRelationship || "";
-
-    if (res.isWeak && !res.summary) {
-      state.step = "fallback";
-      state.contextSummary = "";
-    } else {
-      state.contextSummary = formatSummaryForEdit(res);
-      state.step = res.isWeak ? "fallback" : "verify";
-    }
+    applySummaryResult(res);
   } catch (error) {
-    state.step = "fallback";
-    state.status = error.message || "Could not read the page";
-    state.statusType = "error";
+    if (state.pageContext && !isContextEmpty(state.pageContext)) {
+      const heuristic = buildHeuristicSummary(state.pageContext);
+      applySummaryResult({
+        ok: true,
+        pageContext: state.pageContext,
+        summary: heuristic.summary,
+        intent: heuristic.intent,
+        relationship: heuristic.relationship,
+        isWeak: heuristic.isEmpty,
+        offlineFallback: true,
+        notice: "Reading timed out — showing page capture instead. You can edit and still draft."
+      });
+    } else {
+      showEmptyContextFallback(error.message);
+    }
   } finally {
     state.loading = false;
     render();
   }
+}
+
+function applySummaryResult(res) {
+  state.pageContext = res.pageContext || state.pageContext;
+  state.inferredIntent = res.intent || "";
+  state.inferredRelationship = res.relationship || state.inferredRelationship || "";
+  state.offlineMode = Boolean(res.offlineFallback);
+  state.quotaError = Boolean(res.quotaError);
+  state.notice = res.notice || "";
+
+  if (res.isWeak && !res.summary) {
+    state.step = "fallback";
+    state.contextSummary = "";
+    if (!state.notice) {
+      state.notice = "Couldn't read much from this page — describe what you need below.";
+    }
+  } else {
+    state.contextSummary = formatSummaryForEdit(res);
+    state.step = res.isWeak ? "fallback" : "verify";
+  }
+}
+
+function showEmptyContextFallback(errorMessage) {
+  state.step = "fallback";
+  state.contextSummary = "";
+  state.offlineMode = true;
+  state.notice =
+    state.quotaError || /quota|rate limit/i.test(errorMessage || "")
+      ? "AI quota reached — couldn't summarize. Describe your message below to draft offline."
+      : "Couldn't read this page. Describe what you're trying to say and we'll draft offline.";
+  state.status = errorMessage && !state.notice ? errorMessage : "";
+  state.statusType = state.status ? "error" : "";
+}
+
+function isContextEmpty(ctx) {
+  if (!ctx) return true;
+  return !(
+    (ctx.threadText || "").trim() ||
+    (ctx.composeText || "").trim() ||
+    (ctx.subject || "").trim() ||
+    (ctx.selectedText || "").trim()
+  );
 }
 
 function formatSummaryForEdit(res) {
@@ -167,6 +184,11 @@ function render() {
   return renderDraft();
 }
 
+function noticeHtml() {
+  if (!state.notice) return "";
+  return `<div class="notice-banner ${state.quotaError ? "quota" : "offline"}">${state.notice}</div>`;
+}
+
 function renderLoading() {
   main.innerHTML = `
     <section class="step loading-state">
@@ -180,6 +202,7 @@ function renderLoading() {
 function renderVerify() {
   main.innerHTML = `
     <section class="step">
+      ${noticeHtml()}
       <h2 class="question">Does this look right?</h2>
       <p class="hint">We read the page to understand context. Edit anything that's off before drafting.</p>
 
@@ -211,6 +234,7 @@ function renderVerify() {
 function renderFallback() {
   main.innerHTML = `
     <section class="step">
+      ${noticeHtml()}
       <h2 class="question">What are you trying to say?</h2>
       <p class="hint">We couldn't read much from this page. Describe the situation in a sentence or two.</p>
 
@@ -259,29 +283,61 @@ async function rescanAndSummarize() {
 
     state.pageContext = scan.pageContext;
 
-    const res = await sendMessage({
-      type: "SUMMARIZE_CONTEXT",
-      tabId: state.tabId,
-      pageContext: state.pageContext
-    });
+    if (isContextEmpty(state.pageContext)) {
+      state.step = "fallback";
+      state.notice = "Couldn't read this page — describe what you need below.";
+      state.status = "";
+      return;
+    }
+
+    const res = await withTimeout(
+      sendMessage({
+        type: "SUMMARIZE_CONTEXT",
+        tabId: state.tabId,
+        pageContext: state.pageContext
+      }),
+      SUMMARIZE_CLIENT_TIMEOUT_MS
+    );
 
     if (!res?.ok) throw new Error(res?.error || "Could not summarize context");
 
-    state.inferredIntent = res.intent || "";
-    state.inferredRelationship = res.relationship || "";
-    state.contextSummary = formatSummaryForEdit(res);
-    state.step = res.isWeak ? "fallback" : "verify";
+    applySummaryResult(res);
     state.status = "";
   } catch (error) {
-    state.status = error.message || "Re-scan failed";
-    state.statusType = "error";
+    if (state.pageContext && !isContextEmpty(state.pageContext)) {
+      applySummaryResult({
+        ok: true,
+        pageContext: state.pageContext,
+        summary: formatLocalCapture(state.pageContext),
+        intent: "",
+        relationship: "",
+        isWeak: false,
+        offlineFallback: true,
+        notice: "Showing page capture — AI unavailable."
+      });
+      state.status = "";
+    } else {
+      state.step = "fallback";
+      state.status = error.message || "Re-scan failed";
+      state.statusType = "error";
+      state.notice = "Couldn't read this page — describe what you need below.";
+    }
   } finally {
     state.loading = false;
     render();
   }
 }
 
-async function generateDraft({ variant = null, fineTune = null } = {}) {
+function formatLocalCapture(ctx) {
+  const parts = [];
+  if (ctx.subject) parts.push(`Subject: ${ctx.subject}`);
+  if (ctx.threadText) parts.push(ctx.threadText.slice(0, 1200));
+  if (ctx.composeText) parts.push(`Draft started: ${ctx.composeText.slice(0, 300)}`);
+  if (ctx.selectedText) parts.push(`Selected: ${ctx.selectedText.slice(0, 200)}`);
+  return parts.join("\n\n");
+}
+
+async function generateDraft({ variant = null, fineTune = null, forceOffline = false } = {}) {
   state.loading = true;
   state.status = variant ? "Adjusting tone" : fineTune ? "Updating draft" : "Drafting your message";
   state.statusType = "";
@@ -302,16 +358,24 @@ async function generateDraft({ variant = null, fineTune = null } = {}) {
   };
 
   try {
-    const type = variant ? "GENERATE_VARIANT" : "GENERATE_DRAFT";
+    const type = forceOffline
+      ? "GENERATE_OFFLINE_DRAFT"
+      : variant
+        ? "GENERATE_VARIANT"
+        : "GENERATE_DRAFT";
     const res = await sendMessage({ type, payload, tabId: state.tabId });
     if (!res?.ok) throw new Error(res?.error || "Failed to generate draft");
     state.draft = res.draft;
     state.activeVariant = variant || "balanced";
-    state.status = "Draft ready";
+    state.offlineMode = Boolean(res.offlineFallback);
+    state.quotaError = Boolean(res.quotaError);
+    if (res.notice) state.notice = res.notice;
+    state.status = res.offlineFallback ? "Draft ready (offline)" : "Draft ready";
     state.statusType = "ok";
   } catch (error) {
     state.status = error.message || "Something went wrong";
     state.statusType = "error";
+    state.showOfflineButton = true;
   } finally {
     state.loading = false;
     renderDraft();
@@ -321,9 +385,11 @@ async function generateDraft({ variant = null, fineTune = null } = {}) {
 function renderDraft() {
   restartBtn.hidden = false;
   const disabled = state.loading ? "disabled" : "";
+  const showOfflineBtn = state.statusType === "error" && !state.draft;
 
   main.innerHTML = `
     <section class="step">
+      ${noticeHtml()}
       <h2 class="question">Your draft</h2>
       <p class="hint">Copy it, insert it, or tweak the tone.</p>
       <div class="draft-card" id="draft-text">${escapeHtml(state.draft || (state.loading ? "Writing…" : "No draft yet."))}</div>
@@ -342,6 +408,11 @@ function renderDraft() {
         <button type="button" class="btn btn-primary" id="insert-btn" ${state.draft && !state.loading ? "" : "disabled"}>Insert</button>
       </div>
 
+      ${showOfflineBtn ? `
+      <div class="actions">
+        <button type="button" class="btn btn-secondary" id="offline-draft-btn">Draft offline</button>
+      </div>` : ""}
+
       <div class="fine-tune">
         <label for="fine-tune-input">Anything specific you want included or avoided?</label>
         <textarea id="fine-tune-input" class="field" placeholder="e.g. Mention Thursday works, avoid promising a firm deadline">${escapeHtml(state.fineTune)}</textarea>
@@ -356,8 +427,12 @@ function renderDraft() {
 
   main.querySelectorAll(".variant-chip").forEach((btn) => {
     btn.addEventListener("click", () => {
-      generateDraft({ variant: btn.dataset.id });
+      generateDraft({ variant: btn.dataset.id, forceOffline: state.offlineMode });
     });
+  });
+
+  main.querySelector("#offline-draft-btn")?.addEventListener("click", () => {
+    generateDraft({ forceOffline: true });
   });
 
   main.querySelector("#copy-btn")?.addEventListener("click", async () => {
@@ -404,7 +479,7 @@ function renderDraft() {
 
   main.querySelector("#refine-btn")?.addEventListener("click", () => {
     state.fineTune = fineTuneInput?.value || "";
-    generateDraft({ fineTune: state.fineTune });
+    generateDraft({ fineTune: state.fineTune, forceOffline: state.offlineMode });
   });
 }
 
@@ -414,6 +489,15 @@ function escapeHtml(str) {
     .replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;");
+}
+
+function withTimeout(promise, ms) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) =>
+      setTimeout(() => reject(new Error("Reading the page timed out")), ms)
+    )
+  ]);
 }
 
 function sendMessage(message) {

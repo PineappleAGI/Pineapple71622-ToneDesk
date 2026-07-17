@@ -163,6 +163,18 @@ async function extractError(response, providerName) {
   return formatProviderErrorMessage(providerName, detail, status);
 }
 
+export function isQuotaError(message) {
+  const lower = String(message || "").toLowerCase();
+  return (
+    lower.includes("quota") ||
+    lower.includes("rate limit") ||
+    lower.includes("rate_limit") ||
+    lower.includes("resource_exhausted") ||
+    lower.includes("too many requests") ||
+    lower.includes("limit: 0")
+  );
+}
+
 function formatProviderError(providerName, detail, status) {
   const lower = (detail || "").toLowerCase();
   const isQuota =

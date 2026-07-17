@@ -7,7 +7,8 @@ Chrome extension that helps you write professional, tactful business messages in
 - Floating ✉ button when you focus a message field
 - **Reads page context** from the active site (thread, subject, compose field, selected text)
 - AI-generated **context summary** for you to verify before drafting
-- AI-powered drafts with formal / shorter / softer variants
+- **Offline fallback** when AI quota is exhausted or no API key — page capture + template drafts still work
+- AI-powered drafts with formal / shorter / softer variants (offline variants use simple transforms)
 - **Multiple AI providers** — Gemini (default), Claude, or OpenAI
 - One-tap **Copy** or **Insert** into the active field
 - Optional fine-tune without restarting the flow
@@ -44,6 +45,16 @@ Each provider stores its own API key locally. If you previously saved an OpenAI 
 5. Copy or insert the draft
 
 If the page has little context to read, ToneDesk asks one short free-text question instead of a multi-step quiz.
+
+### When AI quota is exhausted
+
+ToneDesk no longer gets stuck on "Reading…" when Gemini (or another provider) hits rate limits:
+
+1. **Verify step** — Shows a local summary built from what was captured on the page (subject, thread snippets, compose field). You can edit it and continue.
+2. **Draft step** — Falls back to a template-based offline draft (soft opener, acknowledgment, body, closer). Platform-aware length (Slack/WhatsApp shorter, email longer).
+3. **Variants** — Formal / shorter / softer still work offline via simple string transforms.
+
+Add or refresh your API key in settings when quota resets for AI-powered summaries and drafts.
 
 ## Permissions
 

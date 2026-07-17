@@ -1,6 +1,9 @@
 import { buildUserPrompt, buildSummarizePrompt, parseSummaryResponse, isWeakContext } from "../shared/prompts.js";
-import { generateMessage, summarizeContext, normalizeProvider, PROVIDER_LABELS } from "../shared/ai.js";
+import { generateMessage, summarizeContext, normalizeProvider, PROVIDER_LABELS, isQuotaError } from "../shared/ai.js";
+import { buildHeuristicSummary, generateOfflineDraft, pickRichestContext } from "../shared/offline.js";
 import { getSettings, saveSettings, detectPlatform, getActiveApiKey } from "../shared/storage.js";
+
+const SUMMARIZE_TIMEOUT_MS = 9000;
 
 chrome.runtime.onInstalled.addListener(() => {
   chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch(() => {});
@@ -83,47 +86,8 @@ async function handleMessage(message, sender) {
       return { ok: true, pageContext };
     }
 
-    case "SUMMARIZE_CONTEXT": {
-      const tabId = message.tabId || (await getActiveTabId());
-      let pageContext = message.pageContext;
-
-      if (!pageContext) {
-        const stored = await chrome.storage.session.get(`pageContext:${tabId}`);
-        pageContext = stored[`pageContext:${tabId}`] || null;
-      }
-
-      if (!pageContext) {
-        pageContext = await fetchPageContextFromTab(tabId);
-        await chrome.storage.session.set({ [`pageContext:${tabId}`]: pageContext });
-      }
-
-      const settings = await getSettings();
-      const provider = normalizeProvider(settings.provider);
-      const apiKey = getActiveApiKey(settings);
-
-      if (!apiKey) {
-        const label = PROVIDER_LABELS[provider] || provider;
-        throw new Error(`Add your ${label} API key in ToneDesk settings first.`);
-      }
-
-      const rawSummary = await summarizeContext({
-        provider,
-        apiKey,
-        userPrompt: buildSummarizePrompt(pageContext)
-      });
-
-      const parsed = parseSummaryResponse(rawSummary);
-
-      return {
-        ok: true,
-        pageContext,
-        summary: parsed.summary,
-        intent: parsed.intent,
-        relationship: parsed.relationship,
-        rawSummary,
-        isWeak: isWeakContext(pageContext)
-      };
-    }
+    case "SUMMARIZE_CONTEXT":
+      return summarizeContextWithFallback(message);
 
     case "GENERATE_DRAFT": {
       const settings = await getSettings();
@@ -135,19 +99,11 @@ async function handleMessage(message, sender) {
         pageContext = stored[`pageContext:${tabId}`] || null;
       }
 
-      const draft = await generateDraft(settings, buildUserPrompt({
+      return generateDraftWithFallback(settings, buildUserPrompt({
         ...message.payload,
         pageContext,
         tonePreference: settings.tonePreference
-      }));
-
-      if (message.payload?.relationshipId || message.payload?.relationship) {
-        await saveSettings({
-          lastRelationship: message.payload.relationshipId || message.payload.relationship
-        });
-      }
-
-      return { ok: true, draft };
+      }), { ...message.payload, pageContext, tonePreference: settings.tonePreference });
     }
 
     case "GENERATE_VARIANT": {
@@ -160,14 +116,42 @@ async function handleMessage(message, sender) {
         pageContext = stored[`pageContext:${tabId}`] || null;
       }
 
-      const draft = await generateDraft(settings, buildUserPrompt({
+      return generateDraftWithFallback(settings, buildUserPrompt({
         ...message.payload,
         pageContext,
         tonePreference: settings.tonePreference,
         variant: message.payload.variant
-      }));
+      }), {
+        ...message.payload,
+        pageContext,
+        tonePreference: settings.tonePreference,
+        variant: message.payload.variant
+      });
+    }
 
-      return { ok: true, draft };
+    case "GENERATE_OFFLINE_DRAFT": {
+      const settings = await getSettings();
+      const tabId = message.tabId || message.payload?.tabId || (await getActiveTabId());
+      let pageContext = message.payload?.pageContext;
+
+      if (!pageContext && tabId) {
+        const stored = await chrome.storage.session.get(`pageContext:${tabId}`);
+        pageContext = stored[`pageContext:${tabId}`] || null;
+      }
+
+      const draft = generateOfflineDraft({
+        ...message.payload,
+        pageContext,
+        tonePreference: settings.tonePreference
+      });
+
+      if (message.payload?.relationshipId || message.payload?.relationship) {
+        await saveSettings({
+          lastRelationship: message.payload.relationshipId || message.payload.relationship
+        });
+      }
+
+      return { ok: true, draft, offlineFallback: true };
     }
 
     case "INSERT_TEXT": {
@@ -199,6 +183,146 @@ async function handleMessage(message, sender) {
   }
 }
 
+async function summarizeContextWithFallback(message) {
+  const tabId = message.tabId || (await getActiveTabId());
+  let pageContext = message.pageContext;
+
+  if (!pageContext) {
+    const stored = await chrome.storage.session.get(`pageContext:${tabId}`);
+    pageContext = stored[`pageContext:${tabId}`] || null;
+  }
+
+  if (!pageContext) {
+    pageContext = await fetchPageContextFromTab(tabId);
+    await chrome.storage.session.set({ [`pageContext:${tabId}`]: pageContext });
+  }
+
+  const weak = isWeakContext(pageContext);
+  const settings = await getSettings();
+  const apiKey = getActiveApiKey(settings);
+
+  if (apiKey) {
+    try {
+      const rawSummary = await withTimeout(
+        summarizeContext({
+          provider: normalizeProvider(settings.provider),
+          apiKey,
+          userPrompt: buildSummarizePrompt(pageContext)
+        }),
+        SUMMARIZE_TIMEOUT_MS
+      );
+
+      const parsed = parseSummaryResponse(rawSummary);
+
+      return {
+        ok: true,
+        pageContext,
+        summary: parsed.summary,
+        intent: parsed.intent,
+        relationship: parsed.relationship,
+        rawSummary,
+        isWeak: weak,
+        offlineFallback: false
+      };
+    } catch (error) {
+      return buildFallbackSummaryResponse(pageContext, weak, error);
+    }
+  }
+
+  return buildFallbackSummaryResponse(pageContext, weak, new Error("No API key"));
+}
+
+function buildFallbackSummaryResponse(pageContext, weak, error) {
+  const heuristic = buildHeuristicSummary(pageContext);
+  const quotaError = isQuotaError(error?.message);
+  const noApiKey = /no api key/i.test(error?.message || "");
+
+  let notice;
+  if (quotaError) {
+    notice =
+      "AI quota reached — showing page capture instead. You can edit and still draft. " +
+      '<a href="https://ai.dev/rate-limit" target="_blank" rel="noopener noreferrer">Check rate limits</a>';
+  } else if (noApiKey) {
+    notice = "No API key — showing page capture. Add a key in settings for AI drafts, or draft offline.";
+  } else {
+    notice = "AI summary unavailable — showing page capture instead. You can edit and still draft.";
+  }
+
+  const hasContent = !heuristic.isEmpty;
+
+  return {
+    ok: true,
+    pageContext,
+    summary: heuristic.summary,
+    intent: heuristic.intent,
+    relationship: heuristic.relationship,
+    isWeak: weak || heuristic.isEmpty,
+    offlineFallback: true,
+    quotaError,
+    noApiKey,
+    notice: hasContent || weak ? notice : undefined
+  };
+}
+
+async function generateDraftWithFallback(settings, userPrompt, payload) {
+  const provider = normalizeProvider(settings.provider);
+  const apiKey = getActiveApiKey(settings);
+
+  if (!apiKey) {
+    const draft = generateOfflineDraft(payload);
+    if (payload?.relationshipId || payload?.relationship) {
+      await saveSettings({
+        lastRelationship: payload.relationshipId || payload.relationship
+      });
+    }
+    return {
+      ok: true,
+      draft,
+      offlineFallback: true,
+      noApiKey: true,
+      notice: "Drafted offline — add an API key in settings for AI-powered drafts."
+    };
+  }
+
+  try {
+    const draft = await generateMessage({ provider, apiKey, userPrompt });
+    if (payload?.relationshipId || payload?.relationship) {
+      await saveSettings({
+        lastRelationship: payload.relationshipId || payload.relationship
+      });
+    }
+    return { ok: true, draft, offlineFallback: false };
+  } catch (error) {
+    if (isQuotaError(error.message)) {
+      const draft = generateOfflineDraft(payload);
+      if (payload?.relationshipId || payload?.relationship) {
+        await saveSettings({
+          lastRelationship: payload.relationshipId || payload.relationship
+        });
+      }
+      return {
+        ok: true,
+        draft,
+        offlineFallback: true,
+        quotaError: true,
+        notice:
+          "Drafted offline — AI quota reached. Edit as needed or check " +
+          '<a href="https://ai.dev/rate-limit" target="_blank" rel="noopener noreferrer">rate limits</a>.'
+      };
+    }
+    throw error;
+  }
+}
+
+function withTimeout(promise, ms) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) =>
+      setTimeout(() => reject(new Error("AI summary timed out")), ms)
+    )
+  ]);
+}
+
 async function getActiveTabId() {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   return tab?.id;
@@ -208,34 +332,32 @@ async function fetchPageContextFromTab(tabId) {
   if (!tabId) return null;
 
   const stored = await chrome.storage.session.get(`panelContext:${tabId}`);
-  const frameId = stored[`panelContext:${tabId}`]?.frameId;
+  const preferredFrameId = stored[`panelContext:${tabId}`]?.frameId;
+  const candidates = [];
 
+  const frameIds = [];
+  if (typeof preferredFrameId === "number") frameIds.push(preferredFrameId);
+  if (!frameIds.includes(0)) frameIds.push(0);
+
+  for (const frameId of frameIds) {
+    const ctx = await extractFromFrame(tabId, frameId);
+    if (ctx) candidates.push(ctx);
+  }
+
+  const fallback = await extractFromFrame(tabId);
+  if (fallback) candidates.push(fallback);
+
+  return pickRichestContext(...candidates);
+}
+
+async function extractFromFrame(tabId, frameId) {
   try {
     const response =
       typeof frameId === "number"
         ? await chrome.tabs.sendMessage(tabId, { type: "EXTRACT_PAGE_CONTEXT" }, { frameId })
         : await chrome.tabs.sendMessage(tabId, { type: "EXTRACT_PAGE_CONTEXT" });
-    if (response?.pageContext) return response.pageContext;
-  } catch {
-    /* fall through */
-  }
-
-  try {
-    const response = await chrome.tabs.sendMessage(tabId, { type: "EXTRACT_PAGE_CONTEXT" });
     return response?.pageContext || null;
   } catch {
     return null;
   }
-}
-
-async function generateDraft(settings, userPrompt) {
-  const provider = normalizeProvider(settings.provider);
-  const apiKey = getActiveApiKey(settings);
-
-  if (!apiKey) {
-    const label = PROVIDER_LABELS[provider] || provider;
-    throw new Error(`Add your ${label} API key in ToneDesk settings first.`);
-  }
-
-  return generateMessage({ provider, apiKey, userPrompt });
 }
