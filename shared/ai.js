@@ -3,7 +3,7 @@ import { SYSTEM_PROMPT, SUMMARIZE_SYSTEM_PROMPT } from "./prompts.js";
 export const PROVIDER_MODELS = {
   claude: "claude-sonnet-4-20250514",
   openai: "gpt-4o-mini",
-  gemini: "gemini-2.0-flash"
+  gemini: "gemini-2.5-flash"
 };
 
 export const PROVIDER_LABELS = {
@@ -128,5 +128,47 @@ async function extractError(response, providerName) {
   } catch {
     /* ignore */
   }
-  return detail || `${providerName} request failed (${response.status})`;
+
+  const friendly = formatProviderError(providerName, detail, response.status);
+  return friendly || detail || `${providerName} request failed (${response.status})`;
+}
+
+function formatProviderError(providerName, detail, status) {
+  const lower = (detail || "").toLowerCase();
+  const isQuota =
+    status === 429 ||
+    lower.includes("quota exceeded") ||
+    lower.includes("resource_exhausted") ||
+    lower.includes("rate limit") ||
+    lower.includes("rate_limit") ||
+    lower.includes("too many requests");
+
+  if (!isQuota) return null;
+
+  if (providerName === "Gemini") {
+    const limitZero = /limit:\s*0/i.test(detail);
+    const modelMatch = detail.match(/model:\s*([^\s,]+)/i);
+    const modelNote = limitZero
+      ? ` That model${modelMatch ? ` (${modelMatch[1]})` : ""} has no free-tier quota for your project — limits vary by model.`
+      : " Free-tier limits vary by model.";
+    return (
+      `Gemini quota or rate limit reached.${modelNote} ` +
+      "Wait and try again later, check your limits at https://ai.dev/rate-limit, " +
+      "enable billing in Google AI Studio, or switch to another provider in ToneDesk settings."
+    );
+  }
+
+  if (providerName === "OpenAI") {
+    return (
+      "OpenAI rate limit reached. Wait a moment and try again, or check your usage at platform.openai.com."
+    );
+  }
+
+  if (providerName === "Claude") {
+    return (
+      "Claude rate limit reached. Wait a moment and try again, or check your usage at console.anthropic.com."
+    );
+  }
+
+  return `${providerName} quota or rate limit reached. Please wait and try again.`;
 }
