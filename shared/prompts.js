@@ -30,20 +30,85 @@ Phrase guidance (inject intelligently when relevant):
 
 Always return ONLY the message text. No preamble, no explanation.`;
 
+export const SUMMARIZE_SYSTEM_PROMPT = `You are a business communication assistant embedded in a Chrome extension. The user is about to write a message on a site like Gmail, LinkedIn, Slack, or WhatsApp.
+
+Your job is to read captured page context and produce a SHORT verification summary the user can confirm before a draft is generated.
+
+Return ONLY plain text in this exact structure (no markdown headers, no JSON):
+
+INTENT: <one line — e.g. "Reply to a client about a delayed deliverable" or "New outreach to a potential partner">
+RELATIONSHIP: <one line — e.g. "Client / external partner" or "Unknown — first contact" or "Skip if unclear">
+SUMMARY:
+- <bullet 1: what the other person said or the situation>
+- <bullet 2: tone/relationship clues if visible>
+- <bullet 3: what a good reply should address>
+(2–5 bullets total, or one short paragraph if clearer)
+
+Rules:
+- Be concise and factual — infer only from provided context
+- If context is thin, say what you can see and note what's missing
+- Do not write the draft message yet
+- Do not add preamble or closing remarks outside the format above`;
+
 export const VARIANT_INSTRUCTIONS = {
   formal: "Rewrite the message in a more formal, polished register while keeping the same intent.",
   shorter: "Rewrite the message to be noticeably shorter and more concise while keeping warmth and professionalism.",
   softer: "Rewrite the message to be softer, warmer, and more collaborative while keeping the same intent."
 };
 
-export function buildUserPrompt({ platform, intent, situation, relationship, tonePreference, fineTune, variant }) {
+export function buildSummarizePrompt(pageContext) {
+  const ctx = pageContext || {};
+  const parts = [
+    `Platform: ${ctx.platform || "unknown"}`,
+    `Page title: ${ctx.pageTitle || "N/A"}`,
+    `URL: ${ctx.url || "N/A"}`
+  ];
+
+  if (ctx.subject) parts.push(`Subject: ${ctx.subject}`);
+  if (ctx.selectedText) parts.push(`Selected text: ${ctx.selectedText}`);
+  if (ctx.composeText) parts.push(`Text already in compose field:\n${ctx.composeText}`);
+
+  const hints = ctx.hints || {};
+  if (hints.isReply) parts.push("Hint: user appears to be replying to a thread");
+  if (hints.isCompose) parts.push("Hint: user appears to be composing a new message");
+
+  if (ctx.threadText) {
+    parts.push(`Conversation / thread context (may include quoted replies):\n${ctx.threadText}`);
+  } else {
+    parts.push("Conversation / thread context: (none captured)");
+  }
+
+  parts.push("Summarize this context for the user to verify before drafting.");
+  return parts.join("\n\n");
+}
+
+export function buildUserPrompt({
+  platform,
+  verifiedSummary,
+  intent,
+  situation,
+  relationship,
+  tonePreference,
+  fineTune,
+  variant,
+  pageContext
+}) {
   const parts = [
     `Platform: ${platform}`,
-    `Intent: ${intent}`,
-    `Situation: ${situation || "N/A"}`,
-    `Relationship: ${relationship}`,
     `Default tone preference: ${tonePreference || "balanced"}`
   ];
+
+  if (verifiedSummary) {
+    parts.push(`Verified context summary (user confirmed — treat as ground truth):\n${verifiedSummary}`);
+  }
+
+  if (intent) parts.push(`Intent: ${intent}`);
+  if (situation) parts.push(`Situation: ${situation}`);
+  if (relationship) parts.push(`Relationship: ${relationship}`);
+
+  if (pageContext?.composeText) {
+    parts.push(`Existing text in compose field (may replace or build on):\n${pageContext.composeText}`);
+  }
 
   if (fineTune) {
     parts.push(`User fine-tune notes (include or avoid as requested): ${fineTune}`);
@@ -59,4 +124,43 @@ export function buildUserPrompt({ platform, intent, situation, relationship, ton
   );
 
   return parts.join("\n");
+}
+
+export function parseSummaryResponse(text) {
+  const raw = String(text || "").trim();
+  let intent = "";
+  let relationship = "";
+  let summary = raw;
+
+  const intentMatch = raw.match(/^INTENT:\s*(.+)$/m);
+  const relMatch = raw.match(/^RELATIONSHIP:\s*(.+)$/m);
+  const summaryMatch = raw.match(/^SUMMARY:\s*\n?([\s\S]*)$/m);
+
+  if (intentMatch) intent = intentMatch[1].trim();
+  if (relMatch) {
+    const rel = relMatch[1].trim();
+    if (rel && !/^skip/i.test(rel) && !/^unknown/i.test(rel)) {
+      relationship = rel;
+    }
+  }
+  if (summaryMatch) {
+    summary = summaryMatch[1].trim();
+  } else if (intentMatch || relMatch) {
+    summary = raw
+      .replace(/^INTENT:.*$/m, "")
+      .replace(/^RELATIONSHIP:.*$/m, "")
+      .replace(/^SUMMARY:\s*/m, "")
+      .trim();
+  }
+
+  return { intent, relationship, summary: summary || raw };
+}
+
+export function isWeakContext(pageContext) {
+  if (!pageContext) return true;
+  const hasThread = (pageContext.threadText || "").trim().length > 40;
+  const hasCompose = (pageContext.composeText || "").trim().length > 10;
+  const hasSubject = (pageContext.subject || "").trim().length > 0;
+  const hasSelection = (pageContext.selectedText || "").trim().length > 10;
+  return !(hasThread || hasCompose || hasSubject || hasSelection);
 }

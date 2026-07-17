@@ -1,30 +1,6 @@
 import { getSettings, getActiveApiKey, platformLabel } from "../shared/storage.js";
 import { normalizeProvider, PROVIDER_LABELS } from "../shared/ai.js";
 
-const INTENT_OPTIONS = [
-  { id: "reply", label: "💬 Reply to a message" },
-  { id: "new_email", label: "📧 Start a new email" },
-  { id: "outreach", label: "🤝 Reach out to someone new" },
-  { id: "post", label: "📢 Write a post/update" }
-];
-
-const SITUATION_OPTIONS = [
-  { id: "concern", label: "Someone raised a concern or complaint" },
-  { id: "need_think", label: "Someone asked me a question I need to think about" },
-  { id: "pushback", label: "I need to say no / push back" },
-  { id: "followup", label: "I'm following up on something" },
-  { id: "feedback", label: "I'm delivering feedback" },
-  { id: "went_wrong", label: "Something went wrong and I need to address it" }
-];
-
-const RELATIONSHIP_OPTIONS = [
-  { id: "boss", label: "My boss / senior leader" },
-  { id: "peer", label: "A colleague / peer" },
-  { id: "junior", label: "Someone on my team / junior" },
-  { id: "client", label: "A client or external partner" },
-  { id: "new", label: "Someone I've never spoken to" }
-];
-
 const VARIANT_CHIPS = [
   { id: "formal", label: "More formal" },
   { id: "shorter", label: "Shorter" },
@@ -32,12 +8,14 @@ const VARIANT_CHIPS = [
 ];
 
 const state = {
-  step: "intent",
+  step: "loading",
   platform: "gmail",
   tabId: null,
-  intent: "",
-  situation: "",
-  relationship: "",
+  pageContext: null,
+  contextSummary: "",
+  inferredIntent: "",
+  inferredRelationship: "",
+  userNotes: "",
   draft: "",
   activeVariant: "balanced",
   fineTune: "",
@@ -54,14 +32,15 @@ const settingsBtn = document.getElementById("btn-settings");
 init();
 
 async function init() {
-  const [{ context, tabId }, settings] = await Promise.all([
+  const [{ context, pageContext, tabId }, settings] = await Promise.all([
     sendMessage({ type: "GET_PANEL_CONTEXT" }),
     getSettings()
   ]);
 
   state.tabId = tabId || null;
-  state.platform = context?.platform || guessPlatformFromQuery() || "gmail";
-  state.relationship = settings.lastRelationship || "";
+  state.platform = context?.platform || pageContext?.platform || guessPlatformFromQuery() || "gmail";
+  state.pageContext = pageContext || null;
+  state.inferredRelationship = settings.lastRelationship || "";
   platformLabelEl.textContent = platformLabel(state.platform);
 
   settingsBtn.addEventListener("click", () => {
@@ -69,15 +48,8 @@ async function init() {
   });
 
   restartBtn.addEventListener("click", () => {
-    state.step = "intent";
-    state.intent = "";
-    state.situation = "";
-    state.draft = "";
-    state.activeVariant = "balanced";
-    state.fineTune = "";
-    state.status = "";
-    state.statusType = "";
-    render();
+    resetFlow();
+    startContextFlow();
   });
 
   if (!getActiveApiKey(settings)) {
@@ -85,7 +57,20 @@ async function init() {
     return;
   }
 
-  render();
+  startContextFlow();
+}
+
+function resetFlow() {
+  state.step = "loading";
+  state.contextSummary = "";
+  state.inferredIntent = "";
+  state.userNotes = "";
+  state.draft = "";
+  state.activeVariant = "balanced";
+  state.fineTune = "";
+  state.status = "";
+  state.statusType = "";
+  state.loading = false;
 }
 
 function guessPlatformFromQuery() {
@@ -127,135 +112,173 @@ function renderMissingKey(settings) {
   });
 }
 
-function render() {
-  restartBtn.hidden = state.step === "intent";
+async function startContextFlow() {
+  state.step = "loading";
+  state.loading = true;
+  render();
 
-  if (state.step === "intent") return renderIntent();
-  if (state.step === "situation") return renderSituation();
-  if (state.step === "relationship") return renderRelationship();
+  try {
+    const res = await sendMessage({
+      type: "SUMMARIZE_CONTEXT",
+      tabId: state.tabId,
+      pageContext: state.pageContext
+    });
+
+    if (!res?.ok) throw new Error(res?.error || "Could not read page context");
+
+    state.pageContext = res.pageContext || state.pageContext;
+    state.inferredIntent = res.intent || "";
+    state.inferredRelationship = res.relationship || state.inferredRelationship || "";
+
+    if (res.isWeak && !res.summary) {
+      state.step = "fallback";
+      state.contextSummary = "";
+    } else {
+      state.contextSummary = formatSummaryForEdit(res);
+      state.step = res.isWeak ? "fallback" : "verify";
+    }
+  } catch (error) {
+    state.step = "fallback";
+    state.status = error.message || "Could not read the page";
+    state.statusType = "error";
+  } finally {
+    state.loading = false;
+    render();
+  }
+}
+
+function formatSummaryForEdit(res) {
+  const parts = [];
+  if (res.intent) parts.push(`Goal: ${res.intent}`);
+  if (res.relationship) parts.push(`Relationship: ${res.relationship}`);
+  if (res.summary) {
+    if (parts.length) parts.push("");
+    parts.push(res.summary);
+  }
+  return parts.join("\n").trim() || res.rawSummary || "";
+}
+
+function render() {
+  restartBtn.hidden = state.step === "loading";
+
+  if (state.step === "loading") return renderLoading();
+  if (state.step === "verify") return renderVerify();
+  if (state.step === "fallback") return renderFallback();
   return renderDraft();
 }
 
-function renderProgress(activeIndex) {
-  return `
-    <div class="progress" aria-hidden="true">
-      <span class="${activeIndex >= 0 ? "active" : ""}"></span>
-      <span class="${activeIndex >= 1 ? "active" : ""}"></span>
-      <span class="${activeIndex >= 2 ? "active" : ""}"></span>
-    </div>
-  `;
-}
-
-function renderIntent() {
+function renderLoading() {
   main.innerHTML = `
-    <section class="step">
-      ${renderProgress(0)}
-      <h2 class="question">What are you trying to do?</h2>
-      <p class="hint">Pick one — we'll tailor the draft from here.</p>
-      <div class="chips" id="intent-chips">
-        ${INTENT_OPTIONS.map(
-          (opt) => `
-          <button type="button" class="chip ${state.intent === opt.id ? "selected" : ""}" data-id="${opt.id}">
-            ${opt.label}
-          </button>`
-        ).join("")}
-      </div>
+    <section class="step loading-state">
+      <div class="loading-spinner" aria-hidden="true"></div>
+      <h2 class="question">Reading the page…</h2>
+      <p class="hint">Scanning the conversation and compose field on ${escapeHtml(platformLabel(state.platform))}.</p>
     </section>
   `;
-
-  main.querySelectorAll(".chip").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      state.intent = btn.dataset.id;
-      if (state.intent === "reply") {
-        state.step = "situation";
-      } else {
-        state.situation = defaultSituationForIntent(state.intent);
-        state.step = "relationship";
-      }
-      render();
-    });
-  });
 }
 
-function defaultSituationForIntent(intent) {
-  if (intent === "new_email") return "Starting a new professional email";
-  if (intent === "outreach") return "Reaching out to someone new";
-  if (intent === "post") return "Writing a professional post or update";
-  return "General business communication";
-}
-
-function renderSituation() {
+function renderVerify() {
   main.innerHTML = `
     <section class="step">
-      ${renderProgress(1)}
-      <h2 class="question">What's the situation?</h2>
-      <p class="hint">This shapes acknowledgments, pushback, and closings.</p>
-      <div class="chips">
-        ${SITUATION_OPTIONS.map(
-          (opt) => `
-          <button type="button" class="chip ${state.situation === opt.id ? "selected" : ""}" data-id="${opt.id}">
-            ${opt.label}
-          </button>`
-        ).join("")}
-      </div>
+      <h2 class="question">Does this look right?</h2>
+      <p class="hint">We read the page to understand context. Edit anything that's off before drafting.</p>
+
+      ${state.inferredIntent ? `<p class="intent-badge">${escapeHtml(state.inferredIntent)}</p>` : ""}
+
+      <label class="field-label" for="context-summary">Context summary</label>
+      <textarea id="context-summary" class="field context-field">${escapeHtml(state.contextSummary)}</textarea>
+
       <div class="actions">
-        <button type="button" class="btn btn-secondary" id="back-btn">Back</button>
+        <button type="button" class="btn btn-secondary" id="rescan-btn" ${state.loading ? "disabled" : ""}>Re-scan page</button>
+        <button type="button" class="btn btn-primary" id="confirm-btn" ${state.loading ? "disabled" : ""}>Looks right — draft</button>
       </div>
+
+      <div class="status ${state.statusType} ${state.loading ? "loading-dot" : ""}" id="status">${escapeHtml(state.status)}</div>
     </section>
   `;
 
-  main.querySelector("#back-btn").addEventListener("click", () => {
-    state.step = "intent";
-    render();
+  main.querySelector("#context-summary").addEventListener("input", (e) => {
+    state.contextSummary = e.target.value;
   });
 
-  main.querySelectorAll(".chip").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      state.situation = btn.dataset.id;
-      state.step = "relationship";
-      render();
-    });
-  });
-}
-
-function renderRelationship() {
-  main.innerHTML = `
-    <section class="step">
-      ${renderProgress(2)}
-      <h2 class="question">What's your relationship with this person?</h2>
-      <p class="hint">We'll match formality to the audience.</p>
-      <div class="chips">
-        ${RELATIONSHIP_OPTIONS.map(
-          (opt) => `
-          <button type="button" class="chip ${state.relationship === opt.id ? "selected" : ""}" data-id="${opt.id}">
-            ${opt.label}
-          </button>`
-        ).join("")}
-      </div>
-      <div class="actions">
-        <button type="button" class="btn btn-secondary" id="back-btn">Back</button>
-        <button type="button" class="btn btn-primary" id="generate-btn" ${state.relationship ? "" : "disabled"}>
-          Generate draft
-        </button>
-      </div>
-    </section>
-  `;
-
-  main.querySelector("#back-btn").addEventListener("click", () => {
-    state.step = state.intent === "reply" ? "situation" : "intent";
-    render();
-  });
-
-  main.querySelectorAll(".chip").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      state.relationship = btn.dataset.id;
-      renderRelationship();
-    });
-  });
-
-  main.querySelector("#generate-btn").addEventListener("click", () => {
+  main.querySelector("#rescan-btn").addEventListener("click", rescanAndSummarize);
+  main.querySelector("#confirm-btn").addEventListener("click", () => {
+    state.contextSummary = main.querySelector("#context-summary")?.value || state.contextSummary;
     generateDraft();
   });
+}
+
+function renderFallback() {
+  main.innerHTML = `
+    <section class="step">
+      <h2 class="question">What are you trying to say?</h2>
+      <p class="hint">We couldn't read much from this page. Describe the situation in a sentence or two.</p>
+
+      <textarea id="fallback-input" class="field context-field" placeholder="e.g. Reply to my manager about needing one more day on the report">${escapeHtml(state.userNotes || state.contextSummary)}</textarea>
+
+      <div class="actions">
+        <button type="button" class="btn btn-secondary" id="rescan-btn">Try re-scanning page</button>
+        <button type="button" class="btn btn-primary" id="fallback-draft-btn">Draft message</button>
+      </div>
+
+      <div class="status ${state.statusType}" id="status">${escapeHtml(state.status)}</div>
+    </section>
+  `;
+
+  main.querySelector("#fallback-input").addEventListener("input", (e) => {
+    state.userNotes = e.target.value;
+  });
+
+  main.querySelector("#rescan-btn").addEventListener("click", rescanAndSummarize);
+  main.querySelector("#fallback-draft-btn").addEventListener("click", () => {
+    state.userNotes = main.querySelector("#fallback-input")?.value || "";
+    state.contextSummary = state.userNotes;
+    if (!state.contextSummary.trim()) {
+      state.status = "Add a short description first";
+      state.statusType = "error";
+      const statusEl = main.querySelector("#status");
+      if (statusEl) {
+        statusEl.textContent = state.status;
+        statusEl.className = `status ${state.statusType}`;
+      }
+      return;
+    }
+    generateDraft();
+  });
+}
+
+async function rescanAndSummarize() {
+  state.loading = true;
+  state.status = "Re-scanning page…";
+  state.statusType = "";
+  render();
+
+  try {
+    const scan = await sendMessage({ type: "RESCAN_PAGE_CONTEXT", tabId: state.tabId });
+    if (!scan?.ok) throw new Error(scan?.error || "Re-scan failed");
+
+    state.pageContext = scan.pageContext;
+
+    const res = await sendMessage({
+      type: "SUMMARIZE_CONTEXT",
+      tabId: state.tabId,
+      pageContext: state.pageContext
+    });
+
+    if (!res?.ok) throw new Error(res?.error || "Could not summarize context");
+
+    state.inferredIntent = res.intent || "";
+    state.inferredRelationship = res.relationship || "";
+    state.contextSummary = formatSummaryForEdit(res);
+    state.step = res.isWeak ? "fallback" : "verify";
+    state.status = "";
+  } catch (error) {
+    state.status = error.message || "Re-scan failed";
+    state.statusType = "error";
+  } finally {
+    state.loading = false;
+    render();
+  }
 }
 
 async function generateDraft({ variant = null, fineTune = null } = {}) {
@@ -265,19 +288,22 @@ async function generateDraft({ variant = null, fineTune = null } = {}) {
   if (!state.draft) state.step = "draft";
   renderDraft();
 
+  const verifiedSummary = state.contextSummary || state.userNotes;
+
   const payload = {
     platform: state.platform,
-    intent: labelFor(INTENT_OPTIONS, state.intent) || state.intent,
-    situation: labelFor(SITUATION_OPTIONS, state.situation) || state.situation,
-    relationship: labelFor(RELATIONSHIP_OPTIONS, state.relationship) || state.relationship,
-    relationshipId: state.relationship,
+    verifiedSummary,
+    intent: state.inferredIntent,
+    relationship: state.inferredRelationship,
     fineTune: fineTune ?? state.fineTune,
-    variant
+    variant,
+    pageContext: state.pageContext,
+    tabId: state.tabId
   };
 
   try {
     const type = variant ? "GENERATE_VARIANT" : "GENERATE_DRAFT";
-    const res = await sendMessage({ type, payload });
+    const res = await sendMessage({ type, payload, tabId: state.tabId });
     if (!res?.ok) throw new Error(res?.error || "Failed to generate draft");
     state.draft = res.draft;
     state.activeVariant = variant || "balanced";
@@ -380,10 +406,6 @@ function renderDraft() {
     state.fineTune = fineTuneInput?.value || "";
     generateDraft({ fineTune: state.fineTune });
   });
-}
-
-function labelFor(options, id) {
-  return options.find((o) => o.id === id)?.label || id;
 }
 
 function escapeHtml(str) {

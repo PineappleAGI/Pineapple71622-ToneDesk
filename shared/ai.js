@@ -1,4 +1,4 @@
-import { SYSTEM_PROMPT } from "./prompts.js";
+import { SYSTEM_PROMPT, SUMMARIZE_SYSTEM_PROMPT } from "./prompts.js";
 
 export const PROVIDER_MODELS = {
   claude: "claude-sonnet-4-20250514",
@@ -17,19 +17,28 @@ export function normalizeProvider(provider) {
   return provider || "gemini";
 }
 
-export async function generateMessage({ provider, apiKey, userPrompt }) {
+export async function generateMessage({ provider, apiKey, userPrompt, systemPrompt = SYSTEM_PROMPT }) {
   switch (normalizeProvider(provider)) {
     case "openai":
-      return callOpenAI({ apiKey, userPrompt });
+      return callOpenAI({ apiKey, userPrompt, systemPrompt });
     case "gemini":
-      return callGemini({ apiKey, userPrompt });
+      return callGemini({ apiKey, userPrompt, systemPrompt });
     case "claude":
     default:
-      return callClaude({ apiKey, userPrompt });
+      return callClaude({ apiKey, userPrompt, systemPrompt });
   }
 }
 
-async function callOpenAI({ apiKey, userPrompt }) {
+export async function summarizeContext({ provider, apiKey, userPrompt }) {
+  return generateMessage({
+    provider,
+    apiKey,
+    userPrompt,
+    systemPrompt: SUMMARIZE_SYSTEM_PROMPT
+  });
+}
+
+async function callOpenAI({ apiKey, userPrompt, systemPrompt }) {
   const response = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
     headers: {
@@ -38,9 +47,9 @@ async function callOpenAI({ apiKey, userPrompt }) {
     },
     body: JSON.stringify({
       model: PROVIDER_MODELS.openai,
-      temperature: 0.7,
+      temperature: 0.5,
       messages: [
-        { role: "system", content: SYSTEM_PROMPT },
+        { role: "system", content: systemPrompt },
         { role: "user", content: userPrompt }
       ]
     })
@@ -52,11 +61,11 @@ async function callOpenAI({ apiKey, userPrompt }) {
 
   const data = await response.json();
   const text = data?.choices?.[0]?.message?.content?.trim();
-  if (!text) throw new Error("No draft returned from the model.");
+  if (!text) throw new Error("No response returned from the model.");
   return text;
 }
 
-async function callClaude({ apiKey, userPrompt }) {
+async function callClaude({ apiKey, userPrompt, systemPrompt }) {
   const response = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: {
@@ -67,8 +76,8 @@ async function callClaude({ apiKey, userPrompt }) {
     body: JSON.stringify({
       model: PROVIDER_MODELS.claude,
       max_tokens: 1024,
-      temperature: 0.7,
-      system: SYSTEM_PROMPT,
+      temperature: 0.5,
+      system: systemPrompt,
       messages: [{ role: "user", content: userPrompt }]
     })
   });
@@ -79,11 +88,11 @@ async function callClaude({ apiKey, userPrompt }) {
 
   const data = await response.json();
   const text = data?.content?.find((block) => block.type === "text")?.text?.trim();
-  if (!text) throw new Error("No draft returned from the model.");
+  if (!text) throw new Error("No response returned from the model.");
   return text;
 }
 
-async function callGemini({ apiKey, userPrompt }) {
+async function callGemini({ apiKey, userPrompt, systemPrompt }) {
   const model = PROVIDER_MODELS.gemini;
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(apiKey)}`;
 
@@ -91,9 +100,9 @@ async function callGemini({ apiKey, userPrompt }) {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
+      systemInstruction: { parts: [{ text: systemPrompt }] },
       contents: [{ role: "user", parts: [{ text: userPrompt }] }],
-      generationConfig: { temperature: 0.7 }
+      generationConfig: { temperature: 0.5 }
     })
   });
 
@@ -103,7 +112,7 @@ async function callGemini({ apiKey, userPrompt }) {
 
   const data = await response.json();
   const text = data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
-  if (!text) throw new Error("No draft returned from the model.");
+  if (!text) throw new Error("No response returned from the model.");
   return text;
 }
 

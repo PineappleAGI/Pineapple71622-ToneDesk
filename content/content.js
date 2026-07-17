@@ -1,9 +1,11 @@
-/* ToneDesk content script — floating action button + insert */
+/* ToneDesk content script — floating action button, context capture, insert */
 
 (() => {
   const HOST = location.hostname.toLowerCase();
   const PLATFORM = detectPlatform(HOST);
   const BLUR_DELAY_MS = 300;
+  const MAX_THREAD_CHARS = 8000;
+  const MAX_COMPOSE_CHARS = 4000;
 
   let fab = null;
   let tooltip = null;
@@ -31,6 +33,10 @@
       if (message.type === "CLOSE_OVERLAY") {
         closeOverlay();
         sendResponse({ ok: true });
+        return true;
+      }
+      if (message.type === "EXTRACT_PAGE_CONTEXT") {
+        sendResponse({ ok: true, pageContext: extractPageContext() });
         return true;
       }
       return false;
@@ -70,6 +76,256 @@
       });
     });
   }
+
+  /* ── Page context extraction ── */
+
+  function extractPageContext() {
+    const platformData = extractPlatformContext(PLATFORM);
+    const composeText = getComposeText();
+    const selectedText = getSelectedText();
+
+    return {
+      platform: PLATFORM,
+      url: safeUrl(),
+      pageTitle: document.title || "",
+      selectedText: truncate(cleanText(selectedText), 2000),
+      subject: platformData.subject || "",
+      composeText: truncate(cleanText(composeText), MAX_COMPOSE_CHARS),
+      threadText: truncate(cleanText(platformData.threadText || ""), MAX_THREAD_CHARS),
+      hints: {
+        isReply: platformData.isReply ?? false,
+        isCompose: platformData.isCompose ?? Boolean(composeText?.trim()),
+        ...platformData.extraHints
+      }
+    };
+  }
+
+  function safeUrl() {
+    try {
+      const u = new URL(location.href);
+      return `${u.origin}${u.pathname}`;
+    } catch {
+      return location.href || "";
+    }
+  }
+
+  function cleanText(text) {
+    return String(text || "")
+      .replace(/\u00a0/g, " ")
+      .replace(/[\t ]+/g, " ")
+      .replace(/\n{3,}/g, "\n\n")
+      .trim();
+  }
+
+  function truncate(text, max) {
+    if (!text || text.length <= max) return text || "";
+    return `${text.slice(0, max)}\n… [truncated]`;
+  }
+
+  function getSelectedText() {
+    try {
+      const sel = window.getSelection();
+      return sel ? sel.toString().trim() : "";
+    } catch {
+      return "";
+    }
+  }
+
+  function getComposeText() {
+    const el = activeField && document.contains(activeField) ? activeField : findLikelyEditable();
+    if (!el || isSensitiveField(el)) return "";
+    return readFieldText(el);
+  }
+
+  function readFieldText(el) {
+    if (!el) return "";
+    if (el.isContentEditable) return el.innerText || el.textContent || "";
+    if (el.tagName === "TEXTAREA" || el.tagName === "INPUT") return el.value || "";
+    return "";
+  }
+
+  function isSensitiveField(el) {
+    if (!el) return true;
+    const type = (el.type || "").toLowerCase();
+    if (["password", "hidden", "tel", "number"].includes(type)) return true;
+    const name = (el.name || el.id || "").toLowerCase();
+    if (/pass(word)?|secret|token|otp|cvv|ssn/.test(name)) return true;
+    const autocomplete = (el.getAttribute("autocomplete") || "").toLowerCase();
+    if (/password|cc-|one-time/.test(autocomplete)) return true;
+    return false;
+  }
+
+  function extractPlatformContext(platform) {
+    switch (platform) {
+      case "gmail":
+        return extractGmailContext();
+      case "linkedin":
+        return extractLinkedInContext();
+      case "slack":
+        return extractSlackContext();
+      case "whatsapp":
+        return extractWhatsAppContext();
+      default:
+        return extractGenericContext();
+    }
+  }
+
+  function extractGmailContext() {
+    const subject =
+      readInputValue('input[name="subjectbox"]') ||
+      readInputValue('[aria-label="Subject"]') ||
+      readInputValue('[placeholder="Subject"]') ||
+      textFromSelector("h2.hP") ||
+      "";
+
+    const threadParts = [];
+    const messageBodies = document.querySelectorAll(".a3s.aiL, .a3s");
+    messageBodies.forEach((node, i) => {
+      if (node.closest('[role="dialog"]')) return;
+      const text = cleanText(node.innerText || node.textContent);
+      if (text.length > 20) threadParts.push(text);
+    });
+
+    if (threadParts.length === 0) {
+      document.querySelectorAll(".gs .gE.iv.gt, .adn.ads").forEach((node) => {
+        const text = cleanText(node.innerText || node.textContent);
+        if (text.length > 30) threadParts.push(text);
+      });
+    }
+
+    const quoted = document.querySelectorAll(".gmail_quote, blockquote");
+    quoted.forEach((node) => {
+      const text = cleanText(node.innerText || node.textContent);
+      if (text.length > 40) threadParts.push(`[Quoted reply]\n${text}`);
+    });
+
+    const composeEl =
+      activeField ||
+      document.querySelector('[aria-label="Message Body"], [g_editable="true"][contenteditable="true"], div[role="textbox"][contenteditable="true"]');
+    const composeText = readFieldText(composeEl);
+
+    const subjectLower = subject.toLowerCase();
+    const isReply =
+      /^re:/i.test(subject) ||
+      Boolean(document.querySelector('[aria-label*="Reply"], [data-tooltip*="Reply"]')) ||
+      threadParts.length > 0;
+
+    return {
+      subject: cleanText(subject),
+      threadText: threadParts.slice(-6).join("\n\n---\n\n"),
+      isReply,
+      isCompose: Boolean(composeEl),
+      extraHints: {
+        hasSubject: Boolean(subject),
+        messageCount: threadParts.length
+      }
+    };
+  }
+
+  function extractLinkedInContext() {
+    const subject = "";
+    const threadParts = [];
+
+    document.querySelectorAll(".msg-s-event-listitem, .msg-s-message-list__event").forEach((node) => {
+      const text = cleanText(node.innerText || node.textContent);
+      if (text.length > 5) threadParts.push(text);
+    });
+
+    if (threadParts.length === 0) {
+      document.querySelectorAll(".feed-shared-update-v2, .update-components-text").forEach((node) => {
+        const text = cleanText(node.innerText || node.textContent);
+        if (text.length > 20) threadParts.push(text);
+      });
+    }
+
+    const composeEl =
+      activeField ||
+      document.querySelector('.msg-form__contenteditable, [contenteditable="true"][role="textbox"], .ql-editor');
+    const isMessaging = Boolean(document.querySelector(".msg-overlay-conversation-bubble, .msg-thread"));
+    const isPost = Boolean(document.querySelector(".share-box, .share-creation-state"));
+
+    return {
+      subject,
+      threadText: threadParts.slice(-8).join("\n\n---\n\n"),
+      isReply: isMessaging && threadParts.length > 0,
+      isCompose: Boolean(composeEl) || isPost,
+      extraHints: { isMessaging, isPost }
+    };
+  }
+
+  function extractSlackContext() {
+    const threadParts = [];
+
+    document.querySelectorAll('[data-qa="message_container"], .c-message_kit__blocks, .c-virtual_list__item').forEach((node) => {
+      const text = cleanText(node.innerText || node.textContent);
+      if (text.length > 5) threadParts.push(text);
+    });
+
+    const composeEl =
+      activeField ||
+      document.querySelector('[data-qa="message_input"], .ql-editor[contenteditable="true"], .c-wysiwyg_container [contenteditable="true"]');
+
+    return {
+      subject: "",
+      threadText: threadParts.slice(-10).join("\n\n---\n\n"),
+      isReply: threadParts.length > 0,
+      isCompose: Boolean(composeEl),
+      extraHints: {}
+    };
+  }
+
+  function extractWhatsAppContext() {
+    const threadParts = [];
+
+    document.querySelectorAll('[data-pre-plain-text], .message-in, .message-out, .copyable-text').forEach((node) => {
+      const pre = node.getAttribute?.("data-pre-plain-text") || "";
+      const body = cleanText(node.innerText || node.textContent);
+      const combined = pre ? `${pre} ${body}` : body;
+      if (combined.length > 3) threadParts.push(combined);
+    });
+
+    const composeEl =
+      activeField ||
+      document.querySelector('footer [contenteditable="true"], div[title="Type a message"]');
+
+    return {
+      subject: "",
+      threadText: threadParts.slice(-12).join("\n\n---\n\n"),
+      isReply: threadParts.length > 0,
+      isCompose: Boolean(composeEl),
+      extraHints: {}
+    };
+  }
+
+  function extractGenericContext() {
+    const threadParts = [];
+    document.querySelectorAll('[role="article"], [role="listitem"], .message, blockquote').forEach((node) => {
+      const text = cleanText(node.innerText || node.textContent);
+      if (text.length > 30) threadParts.push(text);
+    });
+
+    return {
+      subject: readInputValue('[name="subject"], [aria-label*="Subject" i]') || "",
+      threadText: threadParts.slice(-5).join("\n\n---\n\n"),
+      isReply: threadParts.length > 0,
+      isCompose: Boolean(activeField),
+      extraHints: {}
+    };
+  }
+
+  function readInputValue(selector) {
+    const el = document.querySelector(selector);
+    if (!el || isSensitiveField(el)) return "";
+    return cleanText(el.value || el.textContent || "");
+  }
+
+  function textFromSelector(selector) {
+    const el = document.querySelector(selector);
+    if (!el) return "";
+    return cleanText(el.innerText || el.textContent || "");
+  }
+
+  /* ── FAB & overlay ── */
 
   function createFab() {
     if (fab) return;
@@ -132,6 +388,7 @@
 
   function isEditable(el) {
     if (!el || el.nodeType !== 1) return false;
+    if (isSensitiveField(el)) return false;
     if (el.isContentEditable) return true;
     const tag = el.tagName;
     if (tag === "TEXTAREA") return !el.disabled && !el.readOnly;
@@ -180,9 +437,11 @@
 
   async function openAssistant() {
     clearTimeout(blurTimer);
+    const pageContext = extractPageContext();
+
     const response = await new Promise((resolve) => {
       chrome.runtime.sendMessage(
-        { type: "OPEN_PANEL", platform: PLATFORM },
+        { type: "OPEN_PANEL", platform: PLATFORM, pageContext },
         (res) => resolve(res || { ok: false, mode: "overlay" })
       );
     });
@@ -257,6 +516,7 @@
       ...document.querySelectorAll('[contenteditable="true"], textarea, input[type="text"]')
     ];
     return candidates.find((el) => {
+      if (isSensitiveField(el)) return false;
       const rect = el.getBoundingClientRect();
       return rect.width > 40 && rect.height > 20 && isEditable(el);
     }) || null;
@@ -294,7 +554,6 @@
       }
     }
 
-    // Fallback: append
     if (el.innerHTML.trim() === "" || el.textContent.trim() === "") {
       el.textContent = text;
     } else {
@@ -305,7 +564,6 @@
   }
 
   async function maybeShowFirstTooltip() {
-    // Avoid stacking tooltips from every iframe
     if (window !== window.top) return;
 
     const settings = settingsCache || (await requestSettings());

@@ -5,7 +5,8 @@ Chrome extension that helps you write professional, tactful business messages in
 ## Features
 
 - Floating ✉ button when you focus a message field
-- 3-step conversational intake (intent → situation → relationship)
+- **Reads page context** from the active site (thread, subject, compose field, selected text)
+- AI-generated **context summary** for you to verify before drafting
 - AI-powered drafts with formal / shorter / softer variants
 - **Multiple AI providers** — Gemini (default), Claude, or OpenAI
 - One-tap **Copy** or **Insert** into the active field
@@ -37,8 +38,10 @@ Each provider stores its own API key locally. If you previously saved an OpenAI 
 1. Open Gmail (best first test)
 2. Click into a compose / reply field
 3. Click the navy ToneDesk button near the field
-4. Answer up to 3 short questions
+4. Review the **context summary** ToneDesk read from the page — edit if needed, then tap **Looks right — draft**
 5. Copy or insert the draft
+
+If the page has little context to read, ToneDesk asks one short free-text question instead of a multi-step quiz.
 
 ## Permissions
 

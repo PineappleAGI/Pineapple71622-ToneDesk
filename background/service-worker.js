@@ -1,5 +1,5 @@
-import { buildUserPrompt } from "../shared/prompts.js";
-import { generateMessage, normalizeProvider, PROVIDER_LABELS } from "../shared/ai.js";
+import { buildUserPrompt, buildSummarizePrompt, parseSummaryResponse, isWeakContext } from "../shared/prompts.js";
+import { generateMessage, summarizeContext, normalizeProvider, PROVIDER_LABELS } from "../shared/ai.js";
 import { getSettings, saveSettings, detectPlatform, getActiveApiKey } from "../shared/storage.js";
 
 chrome.runtime.onInstalled.addListener(() => {
@@ -26,13 +26,17 @@ async function handleMessage(message, sender) {
       const tabId = sender.tab?.id;
       if (!tabId) throw new Error("No active tab");
 
+      const frameId = typeof sender.frameId === "number" ? sender.frameId : 0;
+      const panelContext = {
+        platform: message.platform || detectPlatform(sender.tab?.url || ""),
+        tabId,
+        frameId,
+        openedAt: Date.now()
+      };
+
       await chrome.storage.session.set({
-        [`panelContext:${tabId}`]: {
-          platform: message.platform || detectPlatform(sender.tab?.url || ""),
-          tabId,
-          frameId: typeof sender.frameId === "number" ? sender.frameId : 0,
-          openedAt: Date.now()
-        }
+        [`panelContext:${tabId}`]: panelContext,
+        [`pageContext:${tabId}`]: message.pageContext || null
       });
 
       try {
@@ -50,9 +54,11 @@ async function handleMessage(message, sender) {
 
     case "GET_PANEL_CONTEXT": {
       const tabId = message.tabId || (await getActiveTabId());
-      const key = `panelContext:${tabId}`;
-      const data = await chrome.storage.session.get(key);
-      let context = data[key] || null;
+      const panelKey = `panelContext:${tabId}`;
+      const pageKey = `pageContext:${tabId}`;
+      const data = await chrome.storage.session.get([panelKey, pageKey]);
+      let context = data[panelKey] || null;
+      const pageContext = data[pageKey] || null;
 
       if (!context && tabId) {
         try {
@@ -67,13 +73,71 @@ async function handleMessage(message, sender) {
         }
       }
 
-      return { ok: true, context, tabId };
+      return { ok: true, context, pageContext, tabId };
+    }
+
+    case "RESCAN_PAGE_CONTEXT": {
+      const tabId = message.tabId || (await getActiveTabId());
+      const pageContext = await fetchPageContextFromTab(tabId);
+      await chrome.storage.session.set({ [`pageContext:${tabId}`]: pageContext });
+      return { ok: true, pageContext };
+    }
+
+    case "SUMMARIZE_CONTEXT": {
+      const tabId = message.tabId || (await getActiveTabId());
+      let pageContext = message.pageContext;
+
+      if (!pageContext) {
+        const stored = await chrome.storage.session.get(`pageContext:${tabId}`);
+        pageContext = stored[`pageContext:${tabId}`] || null;
+      }
+
+      if (!pageContext) {
+        pageContext = await fetchPageContextFromTab(tabId);
+        await chrome.storage.session.set({ [`pageContext:${tabId}`]: pageContext });
+      }
+
+      const settings = await getSettings();
+      const provider = normalizeProvider(settings.provider);
+      const apiKey = getActiveApiKey(settings);
+
+      if (!apiKey) {
+        const label = PROVIDER_LABELS[provider] || provider;
+        throw new Error(`Add your ${label} API key in ToneDesk settings first.`);
+      }
+
+      const rawSummary = await summarizeContext({
+        provider,
+        apiKey,
+        userPrompt: buildSummarizePrompt(pageContext)
+      });
+
+      const parsed = parseSummaryResponse(rawSummary);
+
+      return {
+        ok: true,
+        pageContext,
+        summary: parsed.summary,
+        intent: parsed.intent,
+        relationship: parsed.relationship,
+        rawSummary,
+        isWeak: isWeakContext(pageContext)
+      };
     }
 
     case "GENERATE_DRAFT": {
       const settings = await getSettings();
+      const tabId = message.tabId || message.payload?.tabId || (await getActiveTabId());
+      let pageContext = message.payload?.pageContext;
+
+      if (!pageContext && tabId) {
+        const stored = await chrome.storage.session.get(`pageContext:${tabId}`);
+        pageContext = stored[`pageContext:${tabId}`] || null;
+      }
+
       const draft = await generateDraft(settings, buildUserPrompt({
         ...message.payload,
+        pageContext,
         tonePreference: settings.tonePreference
       }));
 
@@ -88,8 +152,17 @@ async function handleMessage(message, sender) {
 
     case "GENERATE_VARIANT": {
       const settings = await getSettings();
+      const tabId = message.tabId || (await getActiveTabId());
+      let pageContext = message.payload?.pageContext;
+
+      if (!pageContext && tabId) {
+        const stored = await chrome.storage.session.get(`pageContext:${tabId}`);
+        pageContext = stored[`pageContext:${tabId}`] || null;
+      }
+
       const draft = await generateDraft(settings, buildUserPrompt({
         ...message.payload,
+        pageContext,
         tonePreference: settings.tonePreference,
         variant: message.payload.variant
       }));
@@ -129,6 +202,30 @@ async function handleMessage(message, sender) {
 async function getActiveTabId() {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   return tab?.id;
+}
+
+async function fetchPageContextFromTab(tabId) {
+  if (!tabId) return null;
+
+  const stored = await chrome.storage.session.get(`panelContext:${tabId}`);
+  const frameId = stored[`panelContext:${tabId}`]?.frameId;
+
+  try {
+    const response =
+      typeof frameId === "number"
+        ? await chrome.tabs.sendMessage(tabId, { type: "EXTRACT_PAGE_CONTEXT" }, { frameId })
+        : await chrome.tabs.sendMessage(tabId, { type: "EXTRACT_PAGE_CONTEXT" });
+    if (response?.pageContext) return response.pageContext;
+  } catch {
+    /* fall through */
+  }
+
+  try {
+    const response = await chrome.tabs.sendMessage(tabId, { type: "EXTRACT_PAGE_CONTEXT" });
+    return response?.pageContext || null;
+  } catch {
+    return null;
+  }
 }
 
 async function generateDraft(settings, userPrompt) {
