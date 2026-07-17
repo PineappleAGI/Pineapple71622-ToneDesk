@@ -14,7 +14,7 @@ export const PROVIDER_LABELS = {
 
 export function normalizeProvider(provider) {
   if (provider === "anthropic") return "claude";
-  return provider || "claude";
+  return provider || "gemini";
 }
 
 export async function generateMessage({ provider, apiKey, userPrompt }) {

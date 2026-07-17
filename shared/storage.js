@@ -1,7 +1,7 @@
 import { normalizeProvider } from "./ai.js";
 
 const DEFAULTS = {
-  provider: "claude",
+  provider: "gemini",
   apiKeys: {
     claude: "",
     gemini: "",
@@ -19,8 +19,8 @@ const DEFAULTS = {
 };
 
 export const PROVIDERS = {
-  claude: { id: "claude", label: "Claude (Anthropic)", keyLabel: "Anthropic API key", placeholder: "sk-ant-..." },
   gemini: { id: "gemini", label: "Gemini (Google)", keyLabel: "Google AI API key", placeholder: "AIza..." },
+  claude: { id: "claude", label: "Claude (Anthropic)", keyLabel: "Anthropic API key", placeholder: "sk-ant-..." },
   openai: { id: "openai", label: "OpenAI", keyLabel: "OpenAI API key", placeholder: "sk-..." }
 };
 

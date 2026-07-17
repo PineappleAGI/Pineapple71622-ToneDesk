@@ -96,11 +96,27 @@ function guessPlatformFromQuery() {
 function renderMissingKey(settings) {
   const provider = normalizeProvider(settings.provider);
   const label = PROVIDER_LABELS[provider] || provider;
+  const geminiLink =
+    '<a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer">Google AI Studio</a>';
+
+  let message;
+  if (provider === "gemini") {
+    message = `
+      <p>Get a <strong>free</strong> Gemini API key from ${geminiLink}, paste it in settings, then come back here.</p>
+      <p class="hint">The free tier has rate limits — enough for everyday message drafting.</p>
+    `;
+  } else {
+    message = `
+      <p>ToneDesk is set to ${label}. Add your API key in settings, or switch to <strong>Gemini</strong> for a free tier via ${geminiLink}.</p>
+      <p class="hint">Claude and OpenAI typically require paid API keys.</p>
+    `;
+  }
+
   restartBtn.hidden = true;
   main.innerHTML = `
     <section class="empty-state step">
       <h2 class="question">Add your API key</h2>
-      <p>ToneDesk uses ${label} to draft messages. Add your key in settings, then come back here.</p>
+      ${message}
       <div class="actions">
         <button type="button" class="btn btn-primary" id="open-settings">Open settings</button>
       </div>

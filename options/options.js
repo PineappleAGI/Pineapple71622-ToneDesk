@@ -9,7 +9,7 @@ init();
 
 async function init() {
   const settings = await getSettings();
-  form.provider.value = settings.provider || "claude";
+  form.provider.value = settings.provider || "gemini";
   form.keyClaude.value = settings.apiKeys?.claude || "";
   form.keyOpenai.value = settings.apiKeys?.openai || "";
   form.keyGemini.value = settings.apiKeys?.gemini || "";

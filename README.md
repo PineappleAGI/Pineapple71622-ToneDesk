@@ -7,7 +7,7 @@ Chrome extension that helps you write professional, tactful business messages in
 - Floating ✉ button when you focus a message field
 - 3-step conversational intake (intent → situation → relationship)
 - AI-powered drafts with formal / shorter / softer variants
-- **Multiple AI providers** — Claude (default), Gemini, or OpenAI
+- **Multiple AI providers** — Gemini (default), Claude, or OpenAI
 - One-tap **Copy** or **Insert** into the active field
 - Optional fine-tune without restarting the flow
 - Options page for provider, API key, default tone, and per-site toggles
@@ -18,15 +18,17 @@ Chrome extension that helps you write professional, tactful business messages in
 2. Enable **Developer mode**
 3. Click **Load unpacked**
 4. Select this `tonedesk` folder
-5. Open **ToneDesk Settings**, choose your AI provider (Claude is default), and paste your API key
+5. Open **ToneDesk Settings**, keep **Gemini** selected (default), and paste your free API key from [Google AI Studio](https://aistudio.google.com/apikey)
 
 ## AI providers
 
-| Provider | Default model | API key from |
-|----------|---------------|--------------|
-| **Claude (Anthropic)** — default | claude-sonnet-4 | [console.anthropic.com](https://console.anthropic.com/) |
-| Gemini (Google) | gemini-2.0-flash | [aistudio.google.com](https://aistudio.google.com/) |
-| OpenAI | gpt-4o-mini | [platform.openai.com](https://platform.openai.com/) |
+| Provider | Default model | API key from | Cost |
+|----------|---------------|--------------|------|
+| **Gemini (Google)** — default | gemini-2.0-flash | [aistudio.google.com/apikey](https://aistudio.google.com/apikey) | **Free tier** (rate limits apply) |
+| Claude (Anthropic) | claude-sonnet-4 | [console.anthropic.com](https://console.anthropic.com/) | Paid API |
+| OpenAI | gpt-4o-mini | [platform.openai.com](https://platform.openai.com/) | Paid API |
+
+**Gemini is the recommended starting point.** Google AI Studio offers a free API key with usage limits — enough for everyday drafting. Claude and OpenAI remain available if you already have paid keys.
 
 Each provider stores its own API key locally. If you previously saved an OpenAI key, it remains available when you select OpenAI.
 
