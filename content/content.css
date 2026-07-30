@@ -1,133 +1,53 @@
+/* ToneDesk page launchers */
+
+#tonedesk-corner {
+  position: fixed !important;
+  z-index: 2147483645 !important;
+  right: 20px !important;
+  bottom: 20px !important;
+  width: 48px !important;
+  height: 48px !important;
+  border: none !important;
+  border-radius: 14px !important;
+  background: #1a3a4a !important;
+  color: #fff !important;
+  font-size: 22px !important;
+  line-height: 1 !important;
+  cursor: pointer !important;
+  box-shadow: 0 6px 18px rgba(26, 58, 74, 0.4) !important;
+  padding: 0 !important;
+}
+
+#tonedesk-corner:hover {
+  background: #244a5e !important;
+}
+
 #tonedesk-fab {
-  position: fixed;
-  z-index: 2147483646;
-  width: 44px;
-  height: 44px;
-  border: none;
-  border-radius: 12px;
-  background: #1b3a5c;
-  color: #fff;
-  box-shadow: 0 8px 24px rgba(27, 58, 92, 0.28);
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  position: fixed !important;
+  z-index: 2147483646 !important;
+  width: 44px !important;
+  height: 44px !important;
+  border: none !important;
+  border-radius: 12px !important;
+  background: #1a3a4a !important;
+  color: #fff !important;
+  font-size: 20px !important;
+  line-height: 1 !important;
+  cursor: pointer !important;
+  box-shadow: 0 4px 14px rgba(26, 58, 74, 0.35) !important;
   opacity: 0;
   pointer-events: none;
-  transform: scale(0.92) translateY(4px);
+  padding: 0 !important;
   transition: opacity 0.18s ease, transform 0.18s ease;
-  padding: 0;
+  transform: scale(0.88);
 }
 
 #tonedesk-fab.tonedesk-visible {
-  opacity: 1;
-  pointer-events: auto;
-  transform: scale(1) translateY(0);
+  opacity: 1 !important;
+  pointer-events: auto !important;
+  transform: scale(1) !important;
 }
 
 #tonedesk-fab:hover {
-  background: #16314d;
-}
-
-#tonedesk-fab:focus-visible {
-  outline: 2px solid #8eb6e0;
-  outline-offset: 2px;
-}
-
-#tonedesk-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 2147483647;
-  pointer-events: none;
-}
-
-#tonedesk-overlay.tonedesk-open {
-  pointer-events: auto;
-}
-
-.tonedesk-overlay-backdrop {
-  position: absolute;
-  inset: 0;
-  background: rgba(15, 23, 42, 0.28);
-  opacity: 0;
-  transition: opacity 0.2s ease;
-}
-
-#tonedesk-overlay.tonedesk-open .tonedesk-overlay-backdrop {
-  opacity: 1;
-}
-
-.tonedesk-overlay-panel {
-  position: absolute;
-  top: 0;
-  right: 0;
-  width: 360px;
-  max-width: 100vw;
-  height: 100%;
-  background: #fff;
-  box-shadow: -8px 0 32px rgba(15, 23, 42, 0.18);
-  transform: translateX(100%);
-  transition: transform 0.22s ease;
-  overflow: hidden;
-}
-
-#tonedesk-overlay.tonedesk-open .tonedesk-overlay-panel {
-  transform: translateX(0);
-}
-
-.tonedesk-overlay-panel iframe {
-  width: 100%;
-  height: 100%;
-  border: 0;
-  background: #fff;
-}
-
-#tonedesk-tooltip {
-  position: fixed;
-  right: 20px;
-  bottom: 20px;
-  z-index: 2147483645;
-  width: min(300px, calc(100vw - 40px));
-  padding: 14px 16px;
-  border-radius: 14px;
-  background: #fff;
-  color: #1b3a5c;
-  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.18);
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  opacity: 0;
-  transform: translateY(8px);
-  transition: opacity 0.2s ease, transform 0.2s ease;
-  pointer-events: none;
-}
-
-#tonedesk-tooltip.tonedesk-visible {
-  opacity: 1;
-  transform: translateY(0);
-  pointer-events: auto;
-}
-
-#tonedesk-tooltip strong {
-  display: block;
-  font-size: 14px;
-  margin-bottom: 4px;
-}
-
-#tonedesk-tooltip span {
-  display: block;
-  font-size: 13px;
-  line-height: 1.4;
-  color: #4b5c6e;
-  margin-bottom: 10px;
-}
-
-#tonedesk-tooltip button {
-  appearance: none;
-  border: none;
-  background: #1b3a5c;
-  color: #fff;
-  border-radius: 8px;
-  padding: 7px 12px;
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
+  background: #244a5e !important;
 }

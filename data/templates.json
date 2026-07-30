@@ -1,0 +1,254 @@
+{
+  "q1": [
+    { "id": "reply", "label": "Reply to an email / message" },
+    { "id": "new_email", "label": "Starting a new email" },
+    { "id": "linkedin", "label": "LinkedIn post or comment" },
+    { "id": "slack", "label": "Quick Slack / WhatsApp message" }
+  ],
+  "q2": {
+    "reply": [
+      { "id": "concern", "label": "Someone raised a concern or complaint" },
+      { "id": "need_think", "label": "Someone asked me something I need to think about" },
+      { "id": "pushback", "label": "I need to push back or say no" },
+      { "id": "followup_overdue", "label": "I'm following up on something overdue" },
+      { "id": "feedback", "label": "Someone gave me feedback" },
+      { "id": "went_wrong", "label": "Something went wrong and I need to address it" }
+    ],
+    "new_email": [
+      { "id": "intro", "label": "Introducing myself / reaching out cold" },
+      { "id": "request", "label": "Making a request" },
+      { "id": "schedule", "label": "Scheduling a meeting" },
+      { "id": "update", "label": "Sending an update or status" },
+      { "id": "news", "label": "Delivering news (good or bad)" },
+      { "id": "thanks", "label": "Thanking someone" }
+    ],
+    "linkedin": [
+      { "id": "win", "label": "Sharing a work win or milestone" },
+      { "id": "comment", "label": "Commenting on someone's post professionally" },
+      { "id": "connect", "label": "Asking for a connection" },
+      { "id": "insight", "label": "Sharing an opinion or insight" }
+    ],
+    "slack": [
+      { "id": "status", "label": "Quick status update" },
+      { "id": "request", "label": "Making a polite request" },
+      { "id": "followup", "label": "Following up on something" },
+      { "id": "problem", "label": "Flagging a problem" }
+    ]
+  },
+  "q3": [
+    { "id": "boss", "label": "My boss or senior leadership" },
+    { "id": "colleague", "label": "A colleague or peer" },
+    { "id": "junior", "label": "Someone on my team / junior to me" },
+    { "id": "client", "label": "A client or external partner" },
+    { "id": "stranger", "label": "Someone I haven't met yet" }
+  ],
+  "drafts": {
+    "reply:concern": {
+      "slots": ["their name", "topic", "next step"],
+      "base": "Hi [their name],\n\nThank you for bringing this to our attention. I understand your concern about [topic] and want to address it properly.\n\nI've looked into this and wanted to share where things stand. [next step]\n\nPlease don't hesitate to reach out if you have any questions — I'm here to help.\n\nBest regards",
+      "audience": {
+        "boss": "Hi [their name],\n\nThank you for flagging this. I take your concern about [topic] seriously and want to make sure we handle it correctly.\n\nHere's what I've found so far, and the next step I'm taking: [next step]\n\nHappy to walk through this in more detail at your convenience.\n\nBest regards",
+        "client": "Dear [their name],\n\nThank you for bringing this to our attention. I understand your concern regarding [topic] and want to address it thoroughly.\n\nWe are taking the following step: [next step]\n\nPlease don't hesitate to reach out if you have any questions. We appreciate your partnership.\n\nWarm regards",
+        "stranger": "Hello [their name],\n\nThank you for reaching out and for sharing your concern about [topic]. I want to make sure this is handled properly.\n\nNext step on our end: [next step]\n\nLooking forward to resolving this with you.\n\nBest regards"
+      }
+    },
+    "reply:need_think": {
+      "slots": ["their name", "topic", "day"],
+      "base": "Hi [their name],\n\nThank you for your note about [topic]. I want to make sure I give you a thorough answer on this.\n\nCould I have until [day] to come back to you with a more complete response?\n\nAppreciate your patience — I'll follow up soon.\n\nBest",
+      "audience": {
+        "boss": "Hi [their name],\n\nThanks for the question on [topic]. I want to make sure I give you a well-considered answer.\n\nI'll review this carefully and get back to you by [day].\n\nPlease let me know if you need anything sooner.\n\nBest regards",
+        "client": "Hi [their name],\n\nThank you for reaching out about [topic]. I want to make sure I give you a thorough and accurate answer.\n\nI'll need a short window to review and will respond by [day].\n\nThank you for your patience.\n\nWarm regards",
+        "junior": "Hi [their name],\n\nThanks for asking about [topic] — good question. Let me dig into this properly and get back to you by [day].\n\nFeel free to ping me if anything is urgent before then.\n\nThanks"
+      }
+    },
+    "reply:pushback": {
+      "slots": ["their name", "topic", "alternative"],
+      "base": "Hi [their name],\n\nThank you for the suggestion regarding [topic]. I see where you're coming from.\n\nMy concern would be that we may want to consider [alternative] instead, so we stay aligned on goals and capacity.\n\nI'd love to explore this further — happy to discuss the rationale whenever works for you.\n\nBest",
+      "audience": {
+        "boss": "Hi [their name],\n\nThank you for sharing your thinking on [topic]. I appreciate the direction.\n\nOne thing I want to flag before we move forward: [alternative]. I want to make sure we're aligned on the trade-offs.\n\nHappy to discuss this at your convenience.\n\nBest regards",
+        "client": "Dear [their name],\n\nThank you for the proposal around [topic]. I appreciate you putting this forward.\n\nAt this time, we're not in a position to proceed exactly as outlined. One alternative that may work better is [alternative].\n\nI'd welcome a conversation to find the right path forward together.\n\nWarm regards",
+        "junior": "Hi [their name],\n\nThanks for bringing this up — I appreciate the initiative on [topic].\n\nI'd like us to take a slightly different approach: [alternative]. Happy to walk through the why so we're aligned.\n\nLet me know when you're free to chat.\n\nThanks"
+      }
+    },
+    "reply:followup_overdue": {
+      "slots": ["their name", "topic", "original date"],
+      "base": "Hi [their name],\n\nI wanted to circle back on my previous message about [topic]. I know you're busy — just wanted to keep this on your radar.\n\nNo rush, but if you had a chance to review since [original date], I'd really appreciate a quick update.\n\nHappy to provide anything else you need from my end.\n\nBest",
+      "audience": {
+        "boss": "Hi [their name],\n\nJust following up on [topic] from [original date]. I know priorities shift — wanted to check whether you still need anything from me, or if there's a better time to revisit.\n\nHappy to adjust as needed.\n\nBest regards",
+        "client": "Hi [their name],\n\nI hope you're well. I wanted to gently follow up on [topic], which I shared on [original date].\n\nPlease let me know if you need anything further from our side, or if timing has changed.\n\nLooking forward to hearing from you.\n\nWarm regards",
+        "colleague": "Hi [their name],\n\nQuick nudge on [topic] — I pinged you about this around [original date]. No pressure, just checking if you've had a chance to look.\n\nLet me know if I can help unblock anything.\n\nThanks!"
+      }
+    },
+    "reply:feedback": {
+      "slots": ["their name", "topic", "action"],
+      "base": "Hi [their name],\n\nThank you for the feedback on [topic]. I really appreciate you taking the time to share it.\n\nI've taken it on board, and here's what I'm doing next: [action].\n\nPlease let me know if I've misunderstood anything or if there's more you'd like me to consider.\n\nBest",
+      "audience": {
+        "boss": "Hi [their name],\n\nThank you for the feedback on [topic] — it's helpful and clear. I appreciate you investing the time.\n\nI'm implementing the following: [action]. I'll keep you posted on progress.\n\nGrateful for the guidance.\n\nBest regards",
+        "client": "Dear [their name],\n\nThank you for your thoughtful feedback regarding [topic]. We take this seriously and appreciate the partnership.\n\nAs a next step, we will: [action].\n\nPlease let us know if this aligns with your expectations.\n\nWarm regards",
+        "junior": "Hi [their name],\n\nThanks so much for the feedback on [topic] — really useful. I've noted it and will: [action].\n\nAppreciate you sharing it openly.\n\nThanks"
+      }
+    },
+    "reply:went_wrong": {
+      "slots": ["their name", "what happened", "fix"],
+      "base": "Hi [their name],\n\nI want to own this directly. [what happened], and I understand the impact.\n\nHere's how we're fixing it: [fix]. I'll keep you updated as we close this out.\n\nThank you for your patience — and please let me know if there's anything else you need in the meantime.\n\nBest",
+      "audience": {
+        "boss": "Hi [their name],\n\nI wanted to flag an issue promptly. [what happened].\n\nImmediate fix underway: [fix]. I'll follow up with a fuller readout once it's resolved.\n\nSorry for the disruption — I'll keep you closely informed.\n\nBest regards",
+        "client": "Dear [their name],\n\nI want to be transparent with you. [what happened], and we understand how frustrating this is.\n\nWe are taking the following steps to resolve it: [fix].\n\nThank you for your patience. Please don't hesitate to reach out with any questions.\n\nWarm regards",
+        "junior": "Hi [their name],\n\nQuick heads-up: [what happened]. Not ideal — here's the fix: [fix].\n\nLet me know if you hit any blockers while we sort this.\n\nThanks"
+      }
+    },
+    "new_email:intro": {
+      "slots": ["their name", "context", "ask"],
+      "base": "Hi [their name],\n\nI hope this message finds you well. My name is [your name], and I'm reaching out because [context].\n\nI'd love to [ask] if that might be of interest.\n\nHappy to share more detail whenever convenient — thanks for considering.\n\nBest regards,\n[your name]",
+      "audience": {
+        "boss": "Hi [their name],\n\nI hope you're having a good week. I wanted to briefly introduce a topic: [context].\n\nWould it be possible to [ask]? Happy to prepare a short brief ahead of time.\n\nThank you for your consideration.\n\nBest regards",
+        "client": "Dear [their name],\n\nI hope this message finds you well. I'm reaching out regarding [context].\n\nIf it would be helpful, I'd welcome the chance to [ask].\n\nThank you for your time and consideration.\n\nWarm regards,\n[your name]",
+        "stranger": "Hello [their name],\n\nI hope you're well. We haven't met yet — I'm reaching out because [context].\n\nWould you be open to [ask]? No pressure either way.\n\nThanks for reading, and I hope to connect.\n\nBest regards,\n[your name]"
+      },
+      "extraSlots": ["your name"]
+    },
+    "new_email:request": {
+      "slots": ["their name", "request", "deadline"],
+      "base": "Hi [their name],\n\nHope you're having a good week. When you get a chance, would it be possible to [request]?\n\nIf you could get back to me by [deadline], that would be incredibly helpful — though I understand if timing is tight.\n\nThank you in advance.\n\nBest",
+      "audience": {
+        "boss": "Hi [their name],\n\nI hope you're well. I'd be grateful if you could [request] when you have a moment.\n\nIdeal timing on my end would be by [deadline], but I'm happy to adjust if that doesn't work.\n\nThank you for your support.\n\nBest regards",
+        "client": "Dear [their name],\n\nI hope this finds you well. Would it be possible to [request]?\n\nIf feasible by [deadline], that would help us stay on track. Happy to work around your schedule otherwise.\n\nThank you for your partnership.\n\nWarm regards",
+        "junior": "Hi [their name],\n\nQuick ask: could you [request] when you get a chance?\n\nTarget by [deadline] if possible — let me know if you need anything to unblock.\n\nThanks!"
+      }
+    },
+    "new_email:schedule": {
+      "slots": ["their name", "topic", "time options"],
+      "base": "Hi [their name],\n\nHope you're doing well. I'd like to find time to discuss [topic].\n\nWould any of these work for you: [time options]? Happy to flex if none of those fit.\n\nLooking forward to connecting.\n\nBest",
+      "audience": {
+        "boss": "Hi [their name],\n\nI'd appreciate 20–30 minutes to discuss [topic] when your calendar allows.\n\nA few options on my side: [time options]. Happy to work around your preference.\n\nThank you.\n\nBest regards",
+        "client": "Dear [their name],\n\nI hope you're well. I'd welcome the chance to connect briefly about [topic].\n\nWould any of the following times work: [time options]?\n\nPlease suggest an alternative if needed — looking forward to speaking.\n\nWarm regards",
+        "stranger": "Hello [their name],\n\nI hope this message finds you well. I'd like to schedule a short conversation about [topic].\n\nAre any of these times workable: [time options]?\n\nThank you for considering.\n\nBest regards"
+      }
+    },
+    "new_email:update": {
+      "slots": ["their name", "project", "status", "next step"],
+      "base": "Hi [their name],\n\nQuick update on [project]:\n\nStatus: [status]\n\nNext step: [next step]\n\nPlease let me know if you'd like more detail or if priorities have shifted.\n\nBest",
+      "audience": {
+        "boss": "Hi [their name],\n\nSharing a brief status on [project]:\n\n• Current status: [status]\n• Next step: [next step]\n\nHappy to expand or adjust based on your priorities.\n\nBest regards",
+        "client": "Dear [their name],\n\nI wanted to share a quick progress update on [project].\n\nWhere we are: [status]\nWhat's next: [next step]\n\nPlease let me know if you have any questions.\n\nWarm regards",
+        "colleague": "Hi [their name],\n\nFYI on [project] — [status]. Next up: [next step].\n\nPing me if you need anything else.\n\nThanks"
+      }
+    },
+    "new_email:news": {
+      "slots": ["their name", "news", "implication"],
+      "base": "Hi [their name],\n\nI wanted to share an update with you directly: [news].\n\nWhat this means going forward: [implication].\n\nHappy to discuss further at your convenience — please don't hesitate to reach out with questions.\n\nBest regards",
+      "audience": {
+        "boss": "Hi [their name],\n\nI wanted to flag this for you promptly: [news].\n\nImplication / recommended next step: [implication].\n\nHappy to discuss whenever works for you.\n\nBest regards",
+        "client": "Dear [their name],\n\nI wanted to share important news with you transparently: [news].\n\nHere's what this means for our work together: [implication].\n\nWe appreciate your partnership and are happy to discuss any questions.\n\nWarm regards",
+        "junior": "Hi [their name],\n\nSharing some news: [news].\n\nWhat this means for you: [implication]. Let me know if you have questions — happy to talk it through.\n\nThanks"
+      }
+    },
+    "new_email:thanks": {
+      "slots": ["their name", "what they did", "impact"],
+      "base": "Hi [their name],\n\nI wanted to take a moment to thank you for [what they did]. Your help made a real difference — [impact].\n\nI really appreciate you going the extra mile.\n\nWarm regards",
+      "audience": {
+        "boss": "Hi [their name],\n\nThank you for [what they did]. It had a meaningful impact: [impact].\n\nI appreciate your support and guidance.\n\nBest regards",
+        "client": "Dear [their name],\n\nThank you for [what they did]. We're grateful for the partnership — [impact].\n\nPlease don't hesitate to reach out if there's anything we can support on our end.\n\nWarm regards",
+        "junior": "Hi [their name],\n\nJust wanted to say thank you for [what they did]. It really helped — [impact]. Great work.\n\nThanks!"
+      }
+    },
+    "linkedin:win": {
+      "slots": ["milestone", "team / context", "lesson"],
+      "base": "Excited to share that [milestone].\n\nGrateful to [team / context] for the collaboration that made this possible.\n\nOne takeaway I'm carrying forward: [lesson].\n\nOnward!",
+      "audience": {
+        "stranger": "Proud to share a recent milestone: [milestone].\n\nThis was possible thanks to [team / context]. A lesson that stood out: [lesson].\n\nAlways happy to connect with others navigating similar work.",
+        "colleague": "Thrilled to celebrate [milestone] with [team / context].\n\nTakeaway: [lesson]. Grateful for everyone who helped get us here."
+      }
+    },
+    "linkedin:comment": {
+      "slots": ["specific point", "your angle"],
+      "base": "Really appreciate you sharing this. The point about [specific point] resonated — [your angle].\n\nThanks for putting this into words.",
+      "audience": {
+        "stranger": "Thoughtful post — thank you for sharing. I especially connected with [specific point]. From my experience, [your angle].\n\nLooking forward to reading more of your work.",
+        "boss": "Thank you for sharing this perspective. [specific point] is especially relevant right now — [your angle]. Grateful for the insight."
+      }
+    },
+    "linkedin:connect": {
+      "slots": ["their name", "common ground", "reason"],
+      "base": "Hi [their name],\n\nI came across your profile and noticed [common ground]. I'd welcome the chance to connect — [reason].\n\nNo pressure either way, and thanks for considering.\n\nBest regards",
+      "audience": {
+        "stranger": "Hi [their name],\n\nHope you're well. I noticed [common ground] and thought it might be valuable to connect. [reason].\n\nLooking forward to the possibility of staying in touch.\n\nBest",
+        "client": "Hi [their name],\n\nIt was great learning more about your work — particularly [common ground]. I'd like to connect here so we can stay in touch regarding [reason].\n\nThank you,\nWarm regards"
+      }
+    },
+    "linkedin:insight": {
+      "slots": ["topic", "observation", "question"],
+      "base": "A thought on [topic]:\n\n[observation]\n\nCurious how others are approaching this — [question]",
+      "audience": {
+        "stranger": "Reflecting on [topic] lately.\n\n[observation]\n\nWould love to hear different perspectives: [question]",
+        "colleague": "Quick thought for the network on [topic]:\n\n[observation]\n\n[question] — interested in how you're seeing it."
+      }
+    },
+    "slack:status": {
+      "slots": ["project", "status", "blocker"],
+      "base": "Quick update on [project]: [status].\n\nBlocker (if any): [blocker]. Ping me if you need more detail.",
+      "audience": {
+        "boss": "Status on [project]: [status].\nCurrent blocker: [blocker]. Happy to sync if helpful.",
+        "junior": "Update — [project] is [status]. If you're blocked on [blocker], let me know and I'll help."
+      }
+    },
+    "slack:request": {
+      "slots": ["request", "when"],
+      "base": "Hey — when you get a chance, could you [request]? Ideal by [when] if possible. Thanks!",
+      "audience": {
+        "boss": "Hi — would it be possible to [request] when you have a moment? Timing-wise, [when] would help on my end. Thank you.",
+        "client": "Hi — could I ask for a quick favor: [request]? If you're able by [when], that would be great. Appreciate it.",
+        "junior": "Could you [request] by [when]? Let me know if you need anything to get it done. Thanks!"
+      }
+    },
+    "slack:followup": {
+      "slots": ["topic", "original ask"],
+      "base": "Circling back on [topic] — any update on [original ask]? No rush, just keeping it on the radar. Thanks!",
+      "audience": {
+        "boss": "Quick follow-up on [topic]: still looking for [original ask] when you have bandwidth. Happy to adjust if priorities shifted.",
+        "client": "Just following up on [topic] regarding [original ask]. Please let me know if you need anything else from me. Thanks!"
+      }
+    },
+    "slack:problem": {
+      "slots": ["issue", "impact", "ask"],
+      "base": "Flagging an issue: [issue]. Impact: [impact].\n\nCould use help with [ask]. Thanks for taking a look.",
+      "audience": {
+        "boss": "Heads-up: [issue]. Impact so far: [impact]. Proposed next step / ask: [ask]. Wanted you aware.",
+        "client": "Wanted to flag something promptly: [issue]. Current impact: [impact]. We're looking at [ask] and will keep you posted.",
+        "junior": "FYI — [issue] came up. Impact: [impact]. Can you help with [ask]? I'm around if you get stuck."
+      }
+    }
+  },
+  "variants": {
+    "formal": {
+      "label": "More formal",
+      "replacements": [
+        ["Hey —", "Hello —"],
+        ["Hey,", "Hello,"],
+        ["Hi ", "Dear "],
+        ["Thanks!", "Thank you."],
+        ["Thanks", "Thank you"],
+        ["Best", "Sincerely"],
+        ["Ping me", "Please let me know"],
+        ["FYI", "For your information"],
+        ["Quick ", ""],
+        ["No rush, ", ""],
+        ["!", "."]
+      ]
+    },
+    "shorter": {
+      "label": "Shorter"
+    },
+    "warmer": {
+      "label": "Warmer",
+      "replacements": [
+        ["Best regards", "Warm regards"],
+        ["Best,", "Warmly,"],
+        ["Sincerely", "Warm regards"],
+        ["I hope this message finds you well.", "Hope you're doing well —"],
+        ["Thank you for", "I really appreciate you for"],
+        ["Please don't hesitate to reach out", "I'd love to hear from you anytime"]
+      ]
+    }
+  }
+}

@@ -1,64 +1,158 @@
-# ToneDesk
+# ToneDesk (Project71622)
 
-Chrome extension that helps you write professional, tactful business messages in **Gmail**, **LinkedIn**, **Slack (web)**, and **WhatsApp Web**.
+A downloadable **Chrome extension** for people who write a lot of business messages. You answer a few chip questions (or browse a phrase bank); ToneDesk builds a tactful draft with fill-in blanks — then you copy it or insert it straight into the page.
 
-## Features
+> Open Gmail, LinkedIn, Slack, or WhatsApp Web. ToneDesk helps you say the hard thing professionally — follow-ups, soft pushback, apologies, closers — without sounding cold or abrupt.
 
-- Floating ✉ button when you focus a message field
-- **Reads page context** from the active site (thread, subject, compose field, selected text)
-- AI-generated **context summary** for you to verify before drafting
-- **Offline fallback** when AI quota is exhausted or no API key — page capture + template drafts still work
-- AI-powered drafts with formal / shorter / softer variants (offline variants use simple transforms)
-- **Multiple AI providers** — Gemini (default), Claude, or OpenAI
-- One-tap **Copy** or **Insert** into the active field
-- Optional fine-tune without restarting the flow
-- Options page for provider, API key, default tone, and per-site toggles
+**No account. No API key. No internet required.** Everything runs on-device in Chrome.
 
-## Install (unpacked)
+This is a sibling project to [Skill71717 Pineapple Research Materials](https://github.com/KingHenryZ/Skill71717-Dossier): same “download → set up once → use” idea, different job (business writing instead of research dossiers).
 
-1. Open `chrome://extensions`
-2. Enable **Developer mode**
+---
+
+## Get It From GitHub
+
+You only do this once.
+
+### Step 1 — Make sure you have Chrome
+
+ToneDesk is a Chrome extension (Manifest V3). Use Google Chrome (or another Chromium browser that supports unpacked extensions and, optionally, Chrome’s Built-in AI).
+
+**No other tools to install.** No `npm install`, no build step, no backend. The extension is plain HTML/CSS/JS plus two JSON data files.
+
+### Step 2 — Get the extension folder
+
+**If you already have this repo locally** (e.g. `~/Project71622` or a clone of `tonedesk`), skip the ZIP steps and use that folder.
+
+**Otherwise, from GitHub:**
+
+1. Open <https://github.com/Jennyzzheng/tonedesk>
+2. Click the green **Code** button → **Download ZIP** (or clone with git)
+3. Unzip / clone it somewhere you'll remember
+
+That folder is the extension. It must contain `manifest.json` at the top level.
+
+### Step 3 — Load it into Chrome
+
+1. Open Chrome and go to `chrome://extensions`
+2. Turn on **Developer mode** (top-right toggle)
 3. Click **Load unpacked**
-4. Select this `tonedesk` folder
-5. Open **ToneDesk Settings**, keep **Gemini** selected (default), and paste your free API key from [Google AI Studio](https://aistudio.google.com/apikey)
+4. Select **this folder** (the one with `manifest.json` — not a parent directory)
 
-## AI providers
+ToneDesk should appear in your extensions list with its icon.
 
-| Provider | Default model | API key from | Cost |
-|----------|---------------|--------------|------|
-| **Gemini (Google)** — default | gemini-2.5-flash-lite | [aistudio.google.com/apikey](https://aistudio.google.com/apikey) | **Free tier** (rate limits apply) |
-| Claude (Anthropic) | claude-sonnet-4 | [console.anthropic.com](https://console.anthropic.com/) | Paid API |
-| OpenAI | gpt-4o-mini | [platform.openai.com](https://platform.openai.com/) | Paid API |
+**Pin it (recommended):** click the puzzle-piece icon in Chrome’s toolbar → pin ToneDesk so it’s always one click away.
 
-**Gemini is the recommended starting point.** Google AI Studio offers a free API key with usage limits — enough for everyday drafting. Claude and OpenAI remain available if you already have paid keys.
+---
 
-**Free tier varies by model.** Not every Gemini model is free for every project. If you see a quota error with `limit: 0`, that model has no free-tier allowance for your API key/project — try a current Flash-Lite model (ToneDesk defaults to `gemini-2.5-flash-lite`), wait for limits to reset, or enable billing. Check live limits at [ai.dev/rate-limit](https://ai.dev/rate-limit).
+## Use It
 
-Each provider stores its own API key locally. If you previously saved an OpenAI key, it remains available when you select OpenAI.
+### First: open the panel once
 
-## Use
+1. After installing (or after any update): click **Reload** on the extension card, then hard-refresh the site you’re on (**Cmd+Shift+R** / **Ctrl+Shift+R**)
+2. Click the **ToneDesk** icon in the Chrome toolbar
+3. Choose **Open in window** (always works) or **Open side panel**
 
-1. Open Gmail (best first test)
-2. Click into a compose / reply field
-3. Click the navy ToneDesk button near the field
-4. Review the **context summary** ToneDesk read from the page — edit if needed, then tap **Looks right — draft**
-5. Copy or insert the draft
+You’ll see three tabs: **Write**, **Phrases**, and **Search**.
 
-If the page has little context to read, ToneDesk asks one short free-text question instead of a multi-step quiz.
+### Then: write on a real page
 
-### When AI quota is exhausted
+1. Open **Gmail**, **LinkedIn**, **Slack (web)**, or **WhatsApp Web**
+2. Focus a message / compose field — a small **💼** button appears near the field (and a corner launcher on the page)
+3. Tap **💼**, or open ToneDesk from the toolbar again
+4. Use **Write** / **Phrases** / **Search**, then **Copy** or **Insert** into the page
 
-ToneDesk no longer gets stuck on "Reading…" when Gemini (or another provider) hits rate limits:
+### Write flow
 
-1. **Verify step** — Shows a local summary built from what was captured on the page (subject, thread snippets, compose field). You can edit it and continue.
-2. **Draft step** — Falls back to a template-based offline draft (soft opener, acknowledgment, body, closer). Platform-aware length (Slack/WhatsApp shorter, email longer).
-3. **Variants** — Formal / shorter / softer still work offline via simple string transforms.
+1. **What are you writing?** — reply / new email / LinkedIn / Slack·WhatsApp
+2. **What's the situation?** — chips adapt to step 1
+3. **Who are you talking to?** — boss / peer / junior / client / stranger
 
-Add or refresh your API key in settings when quota resets for AI-powered summaries and drafts.
+Then you get a full draft. Tap highlighted `[slots]` to fill them in. Switch tone with **More formal** / **Shorter** / **Warmer**. Copy or insert into the page.
 
-## Permissions
+### Phrases
 
-- `activeTab`, `scripting`, `storage`, `clipboardWrite`, `sidePanel`
-- Host access for Gmail, LinkedIn, Slack, WhatsApp Web, and AI provider APIs (`api.anthropic.com`, `generativelanguage.googleapis.com`, `api.openai.com`)
+Browse categories as accordions. **Copy**, **Insert**, or ★ favorite phrases. Favorites stay on your machine via `chrome.storage.local`.
 
-API keys are stored only in `chrome.storage.local`. No accounts, history, or analytics.
+### Search
+
+Type in the top bar (e.g. `follow up`, `say no`, `apologize`) for fuzzy top-5 matches from the phrase bank.
+
+---
+
+## What's In The Extension
+
+| Piece | What you'll find |
+|---|---|
+| **Write** | 3-question chip flow → template draft with `[slots]` and tone variants |
+| **Phrases** | Searchable bank of openers, acknowledgments, soft pushback, closers, and more |
+| **Search** | Fuzzy match over the phrase bank (intent hints for queries like “say no”) |
+| **Insert / Copy** | Put the draft into the focused field on the page, or copy to clipboard |
+| **Optional AI polish** | If Chrome Built-in AI (`window.ai.languageModel`) is available, drafts can be polished on-device |
+
+---
+
+## How It Works (three layers)
+
+```text
+Open ToneDesk (toolbar / side panel / 💼 on page)
+  → Layer 1: browse or search phrases.json
+  → Layer 2: answer 3 chips → templates.json draft + slots + tone variants
+  → Layer 3 (optional): Chrome Built-in AI polishes the draft if available
+  → Copy or Insert into Gmail / LinkedIn / Slack / WhatsApp
+```
+
+```text
+Page (content script)  ←→  background service worker  ←→  panel UI
+                              (open UI, tab context, insert relay)
+```
+
+- **Phrase dictionary** — always available; no model
+- **Template engine** — pure logic over `data/templates.json`; works fully offline
+- **Chrome Built-in AI** — optional; when unavailable you still get **📝 Template** drafts
+
+---
+
+## Privacy & Limits
+
+- Everything runs **locally**. No account, no login, no analytics backend.
+- Host access is limited to Gmail, LinkedIn, Slack, and WhatsApp Web.
+- Favorites and preferences live in `chrome.storage.local` on your machine.
+- Optional AI uses Chrome’s on-device Prompt API when present — drafts are not sent to a ToneDesk server.
+- This is a writing aid, not a guarantee that a message is appropriate for every workplace. Review before you send.
+
+---
+
+## Project layout
+
+```
+tonedesk/                  # this folder (manifest.json at the root)
+  manifest.json
+  data/phrases.json        # Layer 1
+  data/templates.json      # Layer 2
+  content/                 # FAB + insert into page fields
+  panel/                   # Write / Phrases / Search UI
+  shared/                  # storage, fuzzy search, AI, templates
+  background/              # message relay + open UI
+  popup/                   # toolbar launcher
+  icons/
+```
+
+---
+
+## Updating after you change code
+
+1. Go to `chrome://extensions`
+2. Click **Reload** on ToneDesk
+3. Hard-refresh the host site (**Cmd+Shift+R** / **Ctrl+Shift+R**)
+
+---
+
+## The Pineapple Project Team
+
+Made by:
+
+- **Henry Zou** — [@HenryZou on LinkedIn](https://www.linkedin.com/in/cunhanzou/)
+- **Jenny Zheng** — [@JennyZheng on LinkedIn](https://www.linkedin.com/in/jenzheny/)
+
+> ToneDesk helps people send the message they mean — clear, warm, and professional — so workplace writing can move faster without losing tact.

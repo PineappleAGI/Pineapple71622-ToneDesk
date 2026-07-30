@@ -1,23 +1,19 @@
 {
   "manifest_version": 3,
   "name": "ToneDesk",
-  "version": "1.4.0",
-  "description": "Write professional, tactful business messages in Gmail, LinkedIn, Slack, and WhatsApp Web.",
+  "version": "2.1.0",
+  "description": "Write professional, tactful business messages — no account, no API key, works offline.",
   "permissions": [
     "activeTab",
     "scripting",
     "storage",
-    "clipboardWrite",
     "sidePanel"
   ],
   "host_permissions": [
     "https://mail.google.com/*",
     "https://*.linkedin.com/*",
     "https://web.whatsapp.com/*",
-    "https://app.slack.com/*",
-    "https://api.openai.com/*",
-    "https://api.anthropic.com/*",
-    "https://generativelanguage.googleapis.com/*"
+    "https://app.slack.com/*"
   ],
   "background": {
     "service_worker": "background/service-worker.js",
@@ -26,9 +22,9 @@
   "side_panel": {
     "default_path": "panel/panel.html"
   },
-  "options_page": "options/options.html",
   "action": {
-    "default_title": "ToneDesk",
+    "default_title": "Open ToneDesk",
+    "default_popup": "popup/popup.html",
     "default_icon": {
       "16": "icons/icon16.png",
       "32": "icons/icon32.png",
@@ -58,7 +54,7 @@
   ],
   "web_accessible_resources": [
     {
-      "resources": ["panel/panel.html", "panel/panel.css", "panel/panel.js", "shared/*", "icons/*"],
+      "resources": ["panel/*", "data/*", "shared/*", "icons/*"],
       "matches": [
         "https://mail.google.com/*",
         "https://*.linkedin.com/*",

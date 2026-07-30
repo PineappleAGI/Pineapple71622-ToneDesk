@@ -1,513 +1,605 @@
-import { getSettings, platformLabel } from "../shared/storage.js";
-import { buildHeuristicSummary } from "../shared/offline.js";
-
-const VARIANT_CHIPS = [
-  { id: "formal", label: "More formal" },
-  { id: "shorter", label: "Shorter" },
-  { id: "softer", label: "Softer" }
-];
-
-const SUMMARIZE_CLIENT_TIMEOUT_MS = 10000;
-
-const state = {
-  step: "loading",
-  platform: "gmail",
-  tabId: null,
-  pageContext: null,
-  contextSummary: "",
-  inferredIntent: "",
-  inferredRelationship: "",
-  userNotes: "",
-  draft: "",
-  activeVariant: "balanced",
-  fineTune: "",
-  loading: false,
-  status: "",
-  statusType: "",
-  notice: "",
-  offlineMode: false,
-  quotaError: false
-};
+import { getSettings, saveSettings, toggleFavorite } from "../shared/storage.js";
+import { fuzzySearch } from "../shared/fuzzy.js";
+import { isBuiltInAiAvailable, enhanceWithBuiltInAi } from "../shared/ai.js";
+import {
+  getDraft,
+  applySlotValues,
+  extractSlots,
+  applyVariant,
+  flattenPhrases
+} from "../shared/templates.js";
 
 const main = document.getElementById("main");
-const platformLabelEl = document.getElementById("platform-label");
-const restartBtn = document.getElementById("btn-restart");
-const settingsBtn = document.getElementById("btn-settings");
+const globalSearch = document.getElementById("global-search");
 
-init();
+let phrasesData = null;
+let templatesData = null;
+let phraseCorpus = [];
+let settings = null;
+let activeTab = "write";
+let panelContext = null;
+
+/** Write flow state */
+const writeState = {
+  step: 1,
+  q1: null,
+  q2: null,
+  q3: null,
+  draftText: "",
+  baseText: "",
+  slots: [],
+  slotValues: {},
+  variant: "balanced",
+  enhanced: false,
+  enhancing: false,
+  editingSlot: null
+};
+
+init().catch((err) => {
+  console.error("ToneDesk panel failed to init", err);
+  if (main) {
+    main.innerHTML = `<div class="empty-state">ToneDesk failed to load.<br/>Reload the extension and try again.<br/><small>${escapeHtml(err?.message || String(err))}</small></div>`;
+  }
+});
 
 async function init() {
-  const [{ context, pageContext, tabId }, settings] = await Promise.all([
-    sendMessage({ type: "GET_PANEL_CONTEXT" }),
-    getSettings()
-  ]);
-
-  state.tabId = tabId || null;
-  state.platform = context?.platform || pageContext?.platform || guessPlatformFromQuery() || "gmail";
-  state.pageContext = pageContext || null;
-  state.inferredRelationship = settings.lastRelationship || "";
-  platformLabelEl.textContent = platformLabel(state.platform);
-
-  settingsBtn.addEventListener("click", () => {
-    chrome.runtime.openOptionsPage();
-  });
-
-  restartBtn.addEventListener("click", () => {
-    resetFlow();
-    startContextFlow();
-  });
-
-  startContextFlow();
-}
-
-function resetFlow() {
-  state.step = "loading";
-  state.contextSummary = "";
-  state.inferredIntent = "";
-  state.userNotes = "";
-  state.draft = "";
-  state.activeVariant = "balanced";
-  state.fineTune = "";
-  state.status = "";
-  state.statusType = "";
-  state.notice = "";
-  state.offlineMode = false;
-  state.quotaError = false;
-  state.loading = false;
-}
-
-function guessPlatformFromQuery() {
-  const params = new URLSearchParams(location.search);
-  return params.get("platform") || null;
-}
-
-async function startContextFlow() {
-  state.step = "loading";
-  state.loading = true;
-  state.notice = "";
-  render();
+  let phrases;
+  let templates;
+  let s;
+  let ctx;
 
   try {
-    const res = await withTimeout(
-      sendMessage({
-        type: "SUMMARIZE_CONTEXT",
-        tabId: state.tabId,
-        pageContext: state.pageContext
+    [phrases, templates, s, ctx] = await Promise.all([
+      fetch(chrome.runtime.getURL("data/phrases.json")).then((r) => {
+        if (!r.ok) throw new Error(`phrases.json ${r.status}`);
+        return r.json();
       }),
-      SUMMARIZE_CLIENT_TIMEOUT_MS
-    );
+      fetch(chrome.runtime.getURL("data/templates.json")).then((r) => {
+        if (!r.ok) throw new Error(`templates.json ${r.status}`);
+        return r.json();
+      }),
+      getSettings(),
+      getPanelContext()
+    ]);
+  } catch (err) {
+    throw err;
+  }
 
-    if (!res?.ok) throw new Error(res?.error || "Could not read page context");
+  phrasesData = phrases;
+  templatesData = templates;
+  phraseCorpus = flattenPhrases(phrases);
+  settings = s;
+  panelContext = ctx;
 
-    applySummaryResult(res);
-  } catch (error) {
-    if (state.pageContext && !isContextEmpty(state.pageContext)) {
-      const heuristic = buildHeuristicSummary(state.pageContext);
-      applySummaryResult({
-        ok: true,
-        pageContext: state.pageContext,
-        summary: heuristic.summary,
-        intent: heuristic.intent,
-        relationship: heuristic.relationship,
-        isWeak: heuristic.isEmpty,
-        offlineFallback: true,
-        notice: "Reading timed out — showing page capture instead. You can edit and still draft."
+  if (settings.lastRelationship) {
+    writeState.q3 = settings.lastRelationship;
+  }
+  if (settings.preferredTone && settings.preferredTone !== "balanced") {
+    writeState.variant =
+      settings.preferredTone === "formal"
+        ? "formal"
+        : settings.preferredTone === "warm"
+          ? "warmer"
+          : "balanced";
+  }
+
+  document.getElementById("btn-close").addEventListener("click", closePanel);
+
+  document.querySelectorAll(".tab").forEach((tab) => {
+    tab.addEventListener("click", () => switchTab(tab.dataset.tab));
+  });
+
+  globalSearch.addEventListener("input", () => {
+    const q = globalSearch.value.trim();
+    if (q.length >= 2) {
+      switchTab("search", { skipFocus: true });
+      render();
+    } else if (activeTab === "search" && !q) {
+      render();
+    }
+  });
+
+  globalSearch.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") {
+      globalSearch.value = "";
+      render();
+    }
+  });
+
+  render();
+}
+
+async function getPanelContext() {
+  return new Promise((resolve) => {
+    try {
+      chrome.runtime.sendMessage({ type: "GET_PANEL_CONTEXT" }, (res) => {
+        void chrome.runtime.lastError;
+        resolve(res?.context || null);
       });
-    } else {
-      showEmptyContextFallback(error.message);
+    } catch {
+      resolve(null);
     }
-  } finally {
-    state.loading = false;
-    render();
+  });
+}
+
+function switchTab(tab, opts = {}) {
+  activeTab = tab;
+  document.querySelectorAll(".tab").forEach((el) => {
+    const on = el.dataset.tab === tab;
+    el.classList.toggle("active", on);
+    el.setAttribute("aria-selected", on ? "true" : "false");
+  });
+  if (tab === "search" && !opts.skipFocus) {
+    globalSearch.focus();
   }
-}
-
-function applySummaryResult(res) {
-  state.pageContext = res.pageContext || state.pageContext;
-  state.inferredIntent = res.intent || "";
-  state.inferredRelationship = res.relationship || state.inferredRelationship || "";
-  state.offlineMode = Boolean(res.offlineFallback);
-  state.quotaError = Boolean(res.quotaError);
-  state.notice = res.notice || "";
-
-  if (res.isWeak && !res.summary) {
-    state.step = "fallback";
-    state.contextSummary = "";
-    if (!state.notice) {
-      state.notice = "Couldn't read much from this page — describe what you need below.";
-    }
-  } else {
-    state.contextSummary = formatSummaryForEdit(res);
-    state.step = res.isWeak ? "fallback" : "verify";
-  }
-}
-
-function showEmptyContextFallback(errorMessage) {
-  state.step = "fallback";
-  state.contextSummary = "";
-  state.offlineMode = true;
-  state.notice =
-    state.quotaError || /quota|rate limit/i.test(errorMessage || "")
-      ? "AI quota reached — couldn't summarize. Describe your message below to draft offline."
-      : "Couldn't read this page. Describe what you're trying to say and we'll draft offline.";
-  state.status = errorMessage && !state.notice ? errorMessage : "";
-  state.statusType = state.status ? "error" : "";
-}
-
-function isContextEmpty(ctx) {
-  if (!ctx) return true;
-  return !(
-    (ctx.threadText || "").trim() ||
-    (ctx.composeText || "").trim() ||
-    (ctx.subject || "").trim() ||
-    (ctx.selectedText || "").trim()
-  );
-}
-
-function formatSummaryForEdit(res) {
-  const parts = [];
-  if (res.intent) parts.push(`Goal: ${res.intent}`);
-  if (res.relationship) parts.push(`Relationship: ${res.relationship}`);
-  if (res.summary) {
-    if (parts.length) parts.push("");
-    parts.push(res.summary);
-  }
-  return parts.join("\n").trim() || res.rawSummary || "";
+  render();
 }
 
 function render() {
-  restartBtn.hidden = state.step === "loading";
-
-  if (state.step === "loading") return renderLoading();
-  if (state.step === "verify") return renderVerify();
-  if (state.step === "fallback") return renderFallback();
-  return renderDraft();
+  if (activeTab === "write") renderWrite();
+  else if (activeTab === "phrases") renderPhrases();
+  else renderSearch();
 }
 
-function noticeHtml() {
-  if (!state.notice) return "";
-  return `<div class="notice-banner ${state.quotaError ? "quota" : "offline"}">${state.notice}</div>`;
-}
+/* ── Write tab ── */
 
-function renderLoading() {
-  main.innerHTML = `
-    <section class="step loading-state">
-      <div class="loading-spinner" aria-hidden="true"></div>
-      <h2 class="question">Reading the page…</h2>
-      <p class="hint">Scanning the conversation and compose field on ${escapeHtml(platformLabel(state.platform))}.</p>
-    </section>
-  `;
-}
+function renderWrite() {
+  if (writeState.step === 4 || writeState.draftText) {
+    renderDraft();
+    return;
+  }
 
-function renderVerify() {
-  main.innerHTML = `
-    <section class="step">
-      ${noticeHtml()}
-      <h2 class="question">Does this look right?</h2>
-      <p class="hint">We read the page to understand context. Edit anything that's off before drafting.</p>
-
-      ${state.inferredIntent ? `<p class="intent-badge">${escapeHtml(state.inferredIntent)}</p>` : ""}
-
-      <label class="field-label" for="context-summary">Context summary</label>
-      <textarea id="context-summary" class="field context-field">${escapeHtml(state.contextSummary)}</textarea>
-
-      <div class="actions">
-        <button type="button" class="btn btn-secondary" id="rescan-btn" ${state.loading ? "disabled" : ""}>Re-scan page</button>
-        <button type="button" class="btn btn-primary" id="confirm-btn" ${state.loading ? "disabled" : ""}>Looks right — draft</button>
-      </div>
-
-      <div class="status ${state.statusType} ${state.loading ? "loading-dot" : ""}" id="status">${escapeHtml(state.status)}</div>
-    </section>
-  `;
-
-  main.querySelector("#context-summary").addEventListener("input", (e) => {
-    state.contextSummary = e.target.value;
-  });
-
-  main.querySelector("#rescan-btn").addEventListener("click", rescanAndSummarize);
-  main.querySelector("#confirm-btn").addEventListener("click", () => {
-    state.contextSummary = main.querySelector("#context-summary")?.value || state.contextSummary;
-    generateDraft();
-  });
-}
-
-function renderFallback() {
-  main.innerHTML = `
-    <section class="step">
-      ${noticeHtml()}
-      <h2 class="question">What are you trying to say?</h2>
-      <p class="hint">We couldn't read much from this page. Describe the situation in a sentence or two.</p>
-
-      <textarea id="fallback-input" class="field context-field" placeholder="e.g. Reply to my manager about needing one more day on the report">${escapeHtml(state.userNotes || state.contextSummary)}</textarea>
-
-      <div class="actions">
-        <button type="button" class="btn btn-secondary" id="rescan-btn">Try re-scanning page</button>
-        <button type="button" class="btn btn-primary" id="fallback-draft-btn">Draft message</button>
-      </div>
-
-      <div class="status ${state.statusType}" id="status">${escapeHtml(state.status)}</div>
-    </section>
-  `;
-
-  main.querySelector("#fallback-input").addEventListener("input", (e) => {
-    state.userNotes = e.target.value;
-  });
-
-  main.querySelector("#rescan-btn").addEventListener("click", rescanAndSummarize);
-  main.querySelector("#fallback-draft-btn").addEventListener("click", () => {
-    state.userNotes = main.querySelector("#fallback-input")?.value || "";
-    state.contextSummary = state.userNotes;
-    if (!state.contextSummary.trim()) {
-      state.status = "Add a short description first";
-      state.statusType = "error";
-      const statusEl = main.querySelector("#status");
-      if (statusEl) {
-        statusEl.textContent = state.status;
-        statusEl.className = `status ${state.statusType}`;
-      }
-      return;
+  if (writeState.step === 1) {
+    main.innerHTML = `
+      <p class="step-label">Step 1 of 3</p>
+      <h2 class="question">What are you writing?</h2>
+      <div class="chips" id="chips"></div>
+    `;
+    const chips = main.querySelector("#chips");
+    for (const opt of templatesData.q1) {
+      chips.appendChild(makeChip(opt.label, () => {
+        writeState.q1 = opt.id;
+        writeState.q2 = null;
+        writeState.step = 2;
+        render();
+      }));
     }
-    generateDraft();
-  });
-}
+    return;
+  }
 
-async function rescanAndSummarize() {
-  state.loading = true;
-  state.status = "Re-scanning page…";
-  state.statusType = "";
-  render();
-
-  try {
-    const scan = await sendMessage({ type: "RESCAN_PAGE_CONTEXT", tabId: state.tabId });
-    if (!scan?.ok) throw new Error(scan?.error || "Re-scan failed");
-
-    state.pageContext = scan.pageContext;
-
-    if (isContextEmpty(state.pageContext)) {
-      state.step = "fallback";
-      state.notice = "Couldn't read this page — describe what you need below.";
-      state.status = "";
-      return;
+  if (writeState.step === 2) {
+    const situations = templatesData.q2[writeState.q1] || [];
+    const q1Label = labelFor(templatesData.q1, writeState.q1);
+    main.innerHTML = `
+      <div class="back-row">
+        <button type="button" class="link-btn" id="btn-back">← Back</button>
+      </div>
+      <p class="answers-trail">${escapeHtml(q1Label)}</p>
+      <p class="step-label">Step 2 of 3</p>
+      <h2 class="question">What's the situation?</h2>
+      <div class="chips" id="chips"></div>
+    `;
+    main.querySelector("#btn-back").onclick = () => {
+      writeState.step = 1;
+      writeState.q1 = null;
+      render();
+    };
+    const chips = main.querySelector("#chips");
+    for (const opt of situations) {
+      chips.appendChild(makeChip(opt.label, () => {
+        writeState.q2 = opt.id;
+        writeState.step = 3;
+        render();
+      }));
     }
+    return;
+  }
 
-    const res = await withTimeout(
-      sendMessage({
-        type: "SUMMARIZE_CONTEXT",
-        tabId: state.tabId,
-        pageContext: state.pageContext
-      }),
-      SUMMARIZE_CLIENT_TIMEOUT_MS
-    );
-
-    if (!res?.ok) throw new Error(res?.error || "Could not summarize context");
-
-    applySummaryResult(res);
-    state.status = "";
-  } catch (error) {
-    if (state.pageContext && !isContextEmpty(state.pageContext)) {
-      applySummaryResult({
-        ok: true,
-        pageContext: state.pageContext,
-        summary: formatLocalCapture(state.pageContext),
-        intent: "",
-        relationship: "",
-        isWeak: false,
-        offlineFallback: true,
-        notice: "Showing page capture — AI unavailable."
+  if (writeState.step === 3) {
+    const q1Label = labelFor(templatesData.q1, writeState.q1);
+    const q2Label = labelFor(templatesData.q2[writeState.q1], writeState.q2);
+    main.innerHTML = `
+      <div class="back-row">
+        <button type="button" class="link-btn" id="btn-back">← Back</button>
+      </div>
+      <p class="answers-trail">${escapeHtml(q1Label)} · ${escapeHtml(q2Label)}</p>
+      <p class="step-label">Step 3 of 3</p>
+      <h2 class="question">Who are you talking to?</h2>
+      <div class="chips" id="chips"></div>
+    `;
+    main.querySelector("#btn-back").onclick = () => {
+      writeState.step = 2;
+      writeState.q2 = null;
+      render();
+    };
+    const chips = main.querySelector("#chips");
+    for (const opt of templatesData.q3) {
+      const chip = makeChip(opt.label, async () => {
+        writeState.q3 = opt.id;
+        await saveSettings({ lastRelationship: opt.id });
+        settings.lastRelationship = opt.id;
+        await generateDraft();
       });
-      state.status = "";
-    } else {
-      state.step = "fallback";
-      state.status = error.message || "Re-scan failed";
-      state.statusType = "error";
-      state.notice = "Couldn't read this page — describe what you need below.";
+      if (opt.id === writeState.q3 || opt.id === settings.lastRelationship) {
+        chip.classList.add("selected");
+      }
+      chips.appendChild(chip);
     }
-  } finally {
-    state.loading = false;
-    render();
   }
 }
 
-function formatLocalCapture(ctx) {
-  const parts = [];
-  if (ctx.subject) parts.push(`Subject: ${ctx.subject}`);
-  if (ctx.threadText) parts.push(ctx.threadText.slice(0, 1200));
-  if (ctx.composeText) parts.push(`Draft started: ${ctx.composeText.slice(0, 300)}`);
-  if (ctx.selectedText) parts.push(`Selected: ${ctx.selectedText.slice(0, 200)}`);
-  return parts.join("\n\n");
-}
-
-async function generateDraft({ variant = null, fineTune = null, forceOffline = false } = {}) {
-  state.loading = true;
-  state.status = variant ? "Adjusting tone" : fineTune ? "Updating draft" : "Drafting your message";
-  state.statusType = "";
-  if (!state.draft) state.step = "draft";
+async function generateDraft() {
+  const result = getDraft(templatesData, writeState.q1, writeState.q2, writeState.q3);
+  writeState.baseText = result.text;
+  writeState.slots = unique([...result.slots, ...extractSlots(result.text)]);
+  writeState.slotValues = {};
+  writeState.variant = "balanced";
+  writeState.enhanced = false;
+  writeState.enhancing = isBuiltInAiAvailable();
+  writeState.step = 4;
+  writeState.draftText = applyVariant(result.text, writeState.variant, templatesData);
   renderDraft();
 
-  const verifiedSummary = state.contextSummary || state.userNotes;
-
-  const payload = {
-    platform: state.platform,
-    verifiedSummary,
-    intent: state.inferredIntent,
-    relationship: state.inferredRelationship,
-    fineTune: fineTune ?? state.fineTune,
-    variant,
-    pageContext: state.pageContext,
-    tabId: state.tabId
-  };
-
-  try {
-    const type = forceOffline
-      ? "GENERATE_OFFLINE_DRAFT"
-      : variant
-        ? "GENERATE_VARIANT"
-        : "GENERATE_DRAFT";
-    const res = await sendMessage({ type, payload, tabId: state.tabId });
-    if (!res?.ok) throw new Error(res?.error || "Failed to generate draft");
-    state.draft = res.draft;
-    state.activeVariant = variant || "balanced";
-    state.offlineMode = Boolean(res.offlineFallback);
-    state.quotaError = Boolean(res.quotaError);
-    if (res.notice) state.notice = res.notice;
-    state.status = res.offlineFallback ? "Draft ready (offline)" : "Draft ready";
-    state.statusType = "ok";
-  } catch (error) {
-    state.status = error.message || "Something went wrong";
-    state.statusType = "error";
-    state.showOfflineButton = true;
-  } finally {
-    state.loading = false;
-    renderDraft();
+  if (isBuiltInAiAvailable()) {
+    const { text, enhanced } = await enhanceWithBuiltInAi(writeState.draftText);
+    writeState.enhancing = false;
+    if (enhanced) {
+      writeState.draftText = text;
+      writeState.baseText = text;
+      writeState.slots = extractSlots(text);
+      writeState.enhanced = true;
+    }
+    if (activeTab === "write" && writeState.step === 4) renderDraft();
   }
 }
 
 function renderDraft() {
-  restartBtn.hidden = false;
-  const disabled = state.loading ? "disabled" : "";
-  const showOfflineBtn = state.statusType === "error" && !state.draft;
+  const display = applySlotValues(writeState.draftText, writeState.slotValues);
+  const badge = writeState.enhancing
+    ? `<span class="badge">⏳ Enhancing…</span>`
+    : writeState.enhanced
+      ? `<span class="badge ai">✨ AI-enhanced</span>`
+      : `<span class="badge template">📝 Template</span>`;
 
   main.innerHTML = `
-    <section class="step">
-      ${noticeHtml()}
-      <h2 class="question">Your draft</h2>
-      <p class="hint">Copy it, insert it, or tweak the tone.</p>
-      <div class="draft-card" id="draft-text">${escapeHtml(state.draft || (state.loading ? "Writing…" : "No draft yet."))}</div>
-
-      <div class="variants">
-        ${VARIANT_CHIPS.map(
-          (v) => `
-          <button type="button" class="variant-chip ${state.activeVariant === v.id ? "active" : ""}" data-id="${v.id}" ${disabled}>
-            ${v.label}
-          </button>`
-        ).join("")}
-      </div>
-
-      <div class="actions">
-        <button type="button" class="btn btn-secondary" id="copy-btn" ${state.draft && !state.loading ? "" : "disabled"}>Copy</button>
-        <button type="button" class="btn btn-primary" id="insert-btn" ${state.draft && !state.loading ? "" : "disabled"}>Insert</button>
-      </div>
-
-      ${showOfflineBtn ? `
-      <div class="actions">
-        <button type="button" class="btn btn-secondary" id="offline-draft-btn">Draft offline</button>
-      </div>` : ""}
-
-      <div class="fine-tune">
-        <label for="fine-tune-input">Anything specific you want included or avoided?</label>
-        <textarea id="fine-tune-input" class="field" placeholder="e.g. Mention Thursday works, avoid promising a firm deadline">${escapeHtml(state.fineTune)}</textarea>
-        <div class="actions">
-          <button type="button" class="btn btn-secondary" id="refine-btn" ${state.draft && !state.loading ? "" : "disabled"}>Update draft</button>
-        </div>
-      </div>
-
-      <div class="status ${state.statusType} ${state.loading ? "loading-dot" : ""}" id="status">${escapeHtml(state.status)}</div>
-    </section>
+    <div class="back-row">
+      <button type="button" class="link-btn" id="btn-restart">← Start over</button>
+      ${badge}
+    </div>
+    <p class="answers-trail">${escapeHtml(trailText())}</p>
+    <div class="variant-row">
+      <button type="button" class="variant-chip ${writeState.variant === "balanced" ? "active" : ""}" data-v="balanced">Balanced</button>
+      <button type="button" class="variant-chip ${writeState.variant === "formal" ? "active" : ""}" data-v="formal">More formal</button>
+      <button type="button" class="variant-chip ${writeState.variant === "shorter" ? "active" : ""}" data-v="shorter">Shorter</button>
+      <button type="button" class="variant-chip ${writeState.variant === "warmer" ? "active" : ""}" data-v="warmer">Warmer</button>
+    </div>
+    <div class="preview-card" id="preview"></div>
+    <div id="slot-editor"></div>
+    <div class="actions">
+      <button type="button" class="btn btn-secondary" id="btn-copy">Copy</button>
+      <button type="button" class="btn btn-primary" id="btn-insert">Insert into page</button>
+    </div>
   `;
 
+  main.querySelector("#btn-restart").onclick = () => {
+    writeState.step = 1;
+    writeState.q1 = null;
+    writeState.q2 = null;
+    writeState.draftText = "";
+    writeState.baseText = "";
+    writeState.enhanced = false;
+    writeState.enhancing = false;
+    writeState.editingSlot = null;
+    render();
+  };
+
   main.querySelectorAll(".variant-chip").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      generateDraft({ variant: btn.dataset.id, forceOffline: state.offlineMode });
-    });
-  });
+    btn.onclick = async () => {
+      const v = btn.dataset.v;
+      writeState.variant = v;
+      const preferred =
+        v === "formal" ? "formal" : v === "warmer" ? "warm" : "balanced";
+      saveSettings({ preferredTone: preferred });
+      settings.preferredTone = preferred;
 
-  main.querySelector("#offline-draft-btn")?.addEventListener("click", () => {
-    generateDraft({ forceOffline: true });
-  });
+      let text = applyVariant(writeState.baseText, v === "balanced" ? null : v, templatesData);
+      writeState.draftText = text;
+      writeState.enhanced = false;
 
-  main.querySelector("#copy-btn")?.addEventListener("click", async () => {
-    try {
-      await navigator.clipboard.writeText(state.draft);
-      state.status = "Copied to clipboard";
-      state.statusType = "ok";
-    } catch {
-      state.status = "Could not copy — select the text manually";
-      state.statusType = "error";
-    }
-    const statusEl = document.getElementById("status");
-    if (statusEl) {
-      statusEl.textContent = state.status;
-      statusEl.className = `status ${state.statusType}`;
-    }
-  });
-
-  main.querySelector("#insert-btn")?.addEventListener("click", async () => {
-    try {
-      const res = await sendMessage({
-        type: "INSERT_TEXT",
-        text: state.draft,
-        tabId: state.tabId
-      });
-      if (!res?.ok) throw new Error(res?.error || "Insert failed");
-      state.status = "Inserted into the message field";
-      state.statusType = "ok";
-    } catch (error) {
-      state.status = error.message || "Could not insert — try Copy instead";
-      state.statusType = "error";
-    }
-    const statusEl = document.getElementById("status");
-    if (statusEl) {
-      statusEl.textContent = state.status;
-      statusEl.className = `status ${state.statusType}`;
-    }
-  });
-
-  const fineTuneInput = main.querySelector("#fine-tune-input");
-  fineTuneInput?.addEventListener("input", () => {
-    state.fineTune = fineTuneInput.value;
-  });
-
-  main.querySelector("#refine-btn")?.addEventListener("click", () => {
-    state.fineTune = fineTuneInput?.value || "";
-    generateDraft({ fineTune: state.fineTune, forceOffline: state.offlineMode });
-  });
-}
-
-function escapeHtml(str) {
-  return String(str || "")
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;");
-}
-
-function withTimeout(promise, ms) {
-  return Promise.race([
-    promise,
-    new Promise((_, reject) =>
-      setTimeout(() => reject(new Error("Reading the page timed out")), ms)
-    )
-  ]);
-}
-
-function sendMessage(message) {
-  return new Promise((resolve) => {
-    chrome.runtime.sendMessage(message, (response) => {
-      if (chrome.runtime.lastError) {
-        resolve({ ok: false, error: chrome.runtime.lastError.message });
-        return;
+      if (isBuiltInAiAvailable() && v !== "shorter") {
+        writeState.enhancing = true;
+        renderDraft();
+        const { text: polished, enhanced } = await enhanceWithBuiltInAi(text);
+        writeState.enhancing = false;
+        if (enhanced) {
+          writeState.draftText = polished;
+          writeState.enhanced = true;
+        }
       }
-      resolve(response);
+      writeState.slots = extractSlots(writeState.draftText);
+      renderDraft();
+    };
+  });
+
+  const preview = main.querySelector("#preview");
+  preview.innerHTML = renderPreviewHtml(display);
+
+  preview.querySelectorAll(".slot").forEach((el) => {
+    el.addEventListener("click", () => {
+      writeState.editingSlot = el.dataset.slot;
+      renderDraft();
     });
   });
+
+  if (writeState.editingSlot) {
+    const editor = main.querySelector("#slot-editor");
+    const slot = writeState.editingSlot;
+    editor.innerHTML = `
+      <div class="slot-prompt">
+        <label for="slot-input">Fill in: [${escapeHtml(slot)}]</label>
+        <input id="slot-input" type="text" value="${escapeAttr(writeState.slotValues[slot] || "")}" placeholder="Type here…" />
+        <div class="actions">
+          <button type="button" class="btn btn-secondary" id="slot-cancel">Cancel</button>
+          <button type="button" class="btn btn-primary" id="slot-save">Done</button>
+        </div>
+      </div>
+    `;
+    const input = editor.querySelector("#slot-input");
+    input.focus();
+    input.select();
+    const save = () => {
+      const val = input.value.trim();
+      if (val) writeState.slotValues[slot] = val;
+      else delete writeState.slotValues[slot];
+      writeState.editingSlot = null;
+      renderDraft();
+    };
+    editor.querySelector("#slot-save").onclick = save;
+    editor.querySelector("#slot-cancel").onclick = () => {
+      writeState.editingSlot = null;
+      renderDraft();
+    };
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") save();
+      if (e.key === "Escape") {
+        writeState.editingSlot = null;
+        renderDraft();
+      }
+    });
+  }
+
+  main.querySelector("#btn-copy").onclick = () => {
+    const finalText = applySlotValues(writeState.draftText, writeState.slotValues);
+    copyText(finalText);
+  };
+  main.querySelector("#btn-insert").onclick = () => {
+    const finalText = applySlotValues(writeState.draftText, writeState.slotValues);
+    insertText(finalText);
+  };
+}
+
+function renderPreviewHtml(text) {
+  return escapeHtml(text).replace(/\[([^\]]+)\]/g, (_, slot) => {
+    const filled = writeState.slotValues[slot];
+    if (filled) {
+      return `<span class="slot filled" data-slot="${escapeAttr(slot)}" title="Edit">${escapeHtml(filled)}</span>`;
+    }
+    return `<span class="slot" data-slot="${escapeAttr(slot)}" title="Tap to fill">[${escapeHtml(slot)}]</span>`;
+  });
+}
+
+function trailText() {
+  const a = labelFor(templatesData.q1, writeState.q1);
+  const b = labelFor(templatesData.q2[writeState.q1], writeState.q2);
+  const c = labelFor(templatesData.q3, writeState.q3);
+  return [a, b, c].filter(Boolean).join(" · ");
+}
+
+/* ── Phrases tab ── */
+
+function renderPhrases() {
+  const favorites = new Set(settings.favoritePhrases || []);
+  let html = "";
+
+  if (favorites.size) {
+    html += `<div class="favorites-section"><h3>★ Favorites</h3>`;
+    for (const phrase of settings.favoritePhrases) {
+      html += phraseRowHtml(phrase, "Favorites", true);
+    }
+    html += `</div>`;
+  }
+
+  html += `<div id="accordions"></div>`;
+  main.innerHTML = html;
+
+  const container = main.querySelector("#accordions");
+  for (const cat of phrasesData.categories) {
+    const acc = document.createElement("div");
+    acc.className = "accordion";
+    acc.innerHTML = `
+      <button type="button" class="accordion-header">
+        <span>${escapeHtml(cat.label)}</span>
+        <span class="chevron">▼</span>
+      </button>
+      <div class="accordion-body"></div>
+    `;
+    const body = acc.querySelector(".accordion-body");
+    for (const phrase of cat.phrases) {
+      body.insertAdjacentHTML(
+        "beforeend",
+        phraseRowHtml(phrase, cat.label, favorites.has(phrase))
+      );
+    }
+    acc.querySelector(".accordion-header").onclick = () => {
+      acc.classList.toggle("open");
+    };
+    container.appendChild(acc);
+  }
+
+  // Open first accordion by default if no favorites focus
+  if (!favorites.size) {
+    container.querySelector(".accordion")?.classList.add("open");
+  }
+
+  bindPhraseActions(main);
+}
+
+function phraseRowHtml(phrase, categoryLabel, starred) {
+  return `
+    <div class="phrase-row" data-phrase="${escapeAttr(phrase)}">
+      <p class="phrase-text">${escapeHtml(phrase)}</p>
+      <div class="phrase-actions">
+        <button type="button" class="mini-btn star ${starred ? "on" : ""}" data-action="star" title="Favorite">${starred ? "★" : "☆"}</button>
+        <button type="button" class="mini-btn" data-action="copy">Copy</button>
+        <button type="button" class="mini-btn" data-action="insert">Insert</button>
+      </div>
+    </div>
+  `;
+}
+
+function bindPhraseActions(root) {
+  root.querySelectorAll(".phrase-row").forEach((row) => {
+    const phrase = row.dataset.phrase;
+    row.querySelectorAll("[data-action]").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        const action = btn.dataset.action;
+        if (action === "copy") copyText(phrase);
+        else if (action === "insert") insertText(phrase);
+        else if (action === "star") {
+          const favs = await toggleFavorite(phrase);
+          settings.favoritePhrases = favs;
+          if (activeTab === "phrases") renderPhrases();
+          else render();
+        }
+      });
+    });
+  });
+}
+
+/* ── Search tab ── */
+
+function renderSearch() {
+  const q = globalSearch.value.trim();
+  if (!q) {
+    main.innerHTML = `
+      <div class="empty-state">
+        Type in the search bar above to find phrases instantly.<br /><br />
+        Try: <em>follow up</em>, <em>say no</em>, <em>apologize</em>, <em>request</em>
+      </div>
+    `;
+    return;
+  }
+
+  const results = fuzzySearch(q, phraseCorpus, 5);
+  if (!results.length) {
+    main.innerHTML = `<div class="empty-state">No matches for “${escapeHtml(q)}”. Try a different word.</div>`;
+    return;
+  }
+
+  const favorites = new Set(settings.favoritePhrases || []);
+  main.innerHTML = `<p class="step-label">Top ${results.length} results</p><div id="results"></div>`;
+  const resultsEl = main.querySelector("#results");
+  for (const item of results) {
+    resultsEl.insertAdjacentHTML(
+      "beforeend",
+      `
+      <div class="phrase-row" data-phrase="${escapeAttr(item.phrase)}" style="background:var(--bg-elevated);border:1px solid var(--border);border-radius:10px;margin-bottom:8px;">
+        <p class="result-meta">${escapeHtml(item.categoryLabel)}</p>
+        <p class="phrase-text">${escapeHtml(item.phrase)}</p>
+        <div class="phrase-actions">
+          <button type="button" class="mini-btn star ${favorites.has(item.phrase) ? "on" : ""}" data-action="star">${favorites.has(item.phrase) ? "★" : "☆"}</button>
+          <button type="button" class="mini-btn" data-action="copy">Copy</button>
+          <button type="button" class="mini-btn" data-action="insert">Insert</button>
+        </div>
+      </div>
+      `
+    );
+  }
+  bindPhraseActions(main);
+}
+
+/* ── Shared helpers ── */
+
+function makeChip(label, onClick) {
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.className = "chip";
+  btn.textContent = label;
+  btn.addEventListener("click", onClick);
+  return btn;
+}
+
+function labelFor(list, id) {
+  return list?.find((x) => x.id === id)?.label || "";
+}
+
+function unique(arr) {
+  return [...new Set(arr)];
+}
+
+async function copyText(text) {
+  try {
+    await navigator.clipboard.writeText(text);
+    showToast("Copied");
+  } catch {
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand("copy");
+    ta.remove();
+    showToast("Copied");
+  }
+}
+
+function insertText(text) {
+  chrome.runtime.sendMessage(
+    {
+      type: "INSERT_INTO_FIELD",
+      text,
+      tabId: panelContext?.tabId,
+      frameId: panelContext?.frameId
+    },
+    (res) => {
+      if (res?.ok) showToast("Inserted");
+      else {
+        copyText(text);
+        showToast("Copied (insert unavailable)");
+      }
+    }
+  );
+}
+
+function closePanel() {
+  // Works for popup windows; side panel users can dismiss via Chrome UI
+  try {
+    window.close();
+  } catch {
+    /* ignore */
+  }
+}
+
+function showToast(msg) {
+  let toast = document.querySelector(".toast");
+  if (!toast) {
+    toast = document.createElement("div");
+    toast.className = "toast";
+    document.body.appendChild(toast);
+  }
+  toast.textContent = msg;
+  toast.classList.add("show");
+  clearTimeout(showToast._t);
+  showToast._t = setTimeout(() => toast.classList.remove("show"), 1600);
+}
+
+function escapeHtml(s) {
+  return String(s || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function escapeAttr(s) {
+  return escapeHtml(s).replace(/'/g, "&#39;");
 }
