@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "ToneDesk",
-  "version": "2.1.0",
-  "description": "Write professional, tactful business messages — no account, no API key, works offline.",
+  "version": "2.2.2",
+  "description": "Rewrite and draft tactful business messages where you already write.",
   "permissions": [
     "activeTab",
     "scripting",
@@ -24,7 +24,6 @@
   },
   "action": {
     "default_title": "Open ToneDesk",
-    "default_popup": "popup/popup.html",
     "default_icon": {
       "16": "icons/icon16.png",
       "32": "icons/icon32.png",

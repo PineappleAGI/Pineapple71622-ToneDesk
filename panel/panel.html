@@ -10,29 +10,31 @@
   <div class="app">
     <header class="header">
       <div class="brand">
-        <span class="brand-mark" aria-hidden="true">💼</span>
-        <div>
-          <h1>ToneDesk</h1>
-          <p class="subtitle">Business English, on-device</p>
-        </div>
+        <img class="brand-mark" src="../icons/brand.svg" width="28" height="28" alt="" />
+        <h1>ToneDesk</h1>
       </div>
-      <button type="button" id="btn-close" class="icon-btn" title="Close" aria-label="Close">✕</button>
+      <div class="header-actions">
+        <button type="button" id="btn-window" class="text-btn" title="Open ToneDesk in a floating window">
+          Pop out
+        </button>
+      </div>
     </header>
 
     <div class="search-bar">
       <input
         type="search"
         id="global-search"
-        placeholder="Search phrases — e.g. follow up, say no…"
+        placeholder="Find phrases — e.g. follow up, say no…"
         autocomplete="off"
         spellcheck="false"
       />
     </div>
 
     <nav class="tabs" role="tablist">
-      <button type="button" class="tab active" role="tab" data-tab="write" aria-selected="true">Write</button>
+      <button type="button" class="tab active" role="tab" data-tab="rewrite" aria-selected="true">Rewrite</button>
+      <button type="button" class="tab" role="tab" data-tab="write" aria-selected="false">Write</button>
       <button type="button" class="tab" role="tab" data-tab="phrases" aria-selected="false">Phrases</button>
-      <button type="button" class="tab" role="tab" data-tab="search" aria-selected="false">Search</button>
+      <button type="button" class="tab" role="tab" data-tab="find" aria-selected="false">Find</button>
     </nav>
 
     <main id="main" class="main"></main>

@@ -1,4 +1,11 @@
-import { getSettings, saveSettings, toggleFavorite } from "../shared/storage.js";
+import {
+  getSettings,
+  saveSettings,
+  toggleFavorite,
+  saveSlotDefaults,
+  pushRecentDraft,
+  platformToQ1
+} from "../shared/storage.js";
 import { fuzzySearch } from "../shared/fuzzy.js";
 import { isBuiltInAiAvailable, enhanceWithBuiltInAi } from "../shared/ai.js";
 import {
@@ -6,7 +13,9 @@ import {
   applySlotValues,
   extractSlots,
   applyVariant,
-  flattenPhrases
+  flattenPhrases,
+  transformFreeText,
+  remainingSlots
 } from "../shared/templates.js";
 
 const main = document.getElementById("main");
@@ -16,15 +25,18 @@ let phrasesData = null;
 let templatesData = null;
 let phraseCorpus = [];
 let settings = null;
-let activeTab = "write";
+let activeTab = "rewrite";
 let panelContext = null;
+let pageSelection = "";
+let pageSelectionFrameId = undefined;
 
-/** Write flow state */
+/** Write flow state (new draft wizard) */
 const writeState = {
   step: 1,
   q1: null,
   q2: null,
   q3: null,
+  preselectedFromPlatform: false,
   draftText: "",
   baseText: "",
   slots: [],
@@ -33,6 +45,23 @@ const writeState = {
   enhanced: false,
   enhancing: false,
   editingSlot: null
+};
+
+/** Rewrite tab state */
+const rewriteState = {
+  active: false,
+  source: "",
+  variant: "soften",
+  draftText: "",
+  enhanced: false,
+  enhancing: false
+};
+
+const PLATFORM_LABEL = {
+  gmail: "Gmail",
+  linkedin: "LinkedIn",
+  slack: "Slack",
+  whatsapp: "WhatsApp"
 };
 
 init().catch((err) => {
@@ -83,7 +112,11 @@ async function init() {
           : "balanced";
   }
 
-  document.getElementById("btn-close").addEventListener("click", closePanel);
+  applyPlatformPreselect();
+
+  pageSelection = await fetchPageSelection();
+
+  document.getElementById("btn-window")?.addEventListener("click", openInWindow);
 
   document.querySelectorAll(".tab").forEach((tab) => {
     tab.addEventListener("click", () => switchTab(tab.dataset.tab));
@@ -92,9 +125,9 @@ async function init() {
   globalSearch.addEventListener("input", () => {
     const q = globalSearch.value.trim();
     if (q.length >= 2) {
-      switchTab("search", { skipFocus: true });
+      switchTab("find", { skipFocus: true });
       render();
-    } else if (activeTab === "search" && !q) {
+    } else if (activeTab === "find" && !q) {
       render();
     }
   });
@@ -107,6 +140,14 @@ async function init() {
   });
 
   render();
+}
+
+function applyPlatformPreselect() {
+  const q1 = platformToQ1(panelContext?.platform);
+  if (!q1 || writeState.q1) return;
+  writeState.q1 = q1;
+  writeState.step = 2;
+  writeState.preselectedFromPlatform = true;
 }
 
 async function getPanelContext() {
@@ -122,6 +163,28 @@ async function getPanelContext() {
   });
 }
 
+function fetchPageSelection() {
+  return new Promise((resolve) => {
+    try {
+      chrome.runtime.sendMessage(
+        {
+          type: "GET_SELECTION",
+          tabId: panelContext?.tabId,
+          frameId: panelContext?.frameId
+        },
+        (res) => {
+          void chrome.runtime.lastError;
+          const text = String(res?.text || "").trim();
+          if (typeof res?.frameId === "number") pageSelectionFrameId = res.frameId;
+          resolve(text);
+        }
+      );
+    } catch {
+      resolve("");
+    }
+  });
+}
+
 function switchTab(tab, opts = {}) {
   activeTab = tab;
   document.querySelectorAll(".tab").forEach((el) => {
@@ -129,16 +192,176 @@ function switchTab(tab, opts = {}) {
     el.classList.toggle("active", on);
     el.setAttribute("aria-selected", on ? "true" : "false");
   });
-  if (tab === "search" && !opts.skipFocus) {
+  if (tab === "find" && !opts.skipFocus) {
     globalSearch.focus();
   }
   render();
 }
 
 function render() {
-  if (activeTab === "write") renderWrite();
+  if (activeTab === "rewrite") renderRewriteTab();
+  else if (activeTab === "write") renderWrite();
   else if (activeTab === "phrases") renderPhrases();
-  else renderSearch();
+  else renderFind();
+}
+
+/* ── Rewrite tab ── */
+
+function renderRewriteTab() {
+  if (rewriteState.active) {
+    renderRewriteResult();
+    return;
+  }
+
+  main.innerHTML = `
+    ${selectionBannerHtml()}
+    <div class="paste-rewrite">
+      <label for="paste-rewrite-input">Or paste text to rewrite</label>
+      <textarea id="paste-rewrite-input" rows="4" placeholder="Paste a draft here…"></textarea>
+      <button type="button" class="btn btn-primary" id="btn-paste-rewrite">Rewrite pasted text</button>
+    </div>
+  `;
+  bindSelectionBanner();
+}
+
+function selectionBannerHtml() {
+  if (pageSelection && pageSelection.length >= 3) {
+    const preview =
+      pageSelection.length > 90 ? `${pageSelection.slice(0, 90)}…` : pageSelection;
+    return `
+      <div class="rewrite-banner" id="rewrite-banner">
+        <div>
+          <p class="rewrite-banner-title">Page selection</p>
+          <p class="rewrite-banner-preview">${escapeHtml(preview)}</p>
+        </div>
+        <button type="button" class="btn btn-primary btn-compact" id="btn-start-rewrite">Rewrite</button>
+      </div>
+    `;
+  }
+
+  return `
+    <div class="rewrite-banner rewrite-banner-idle" id="rewrite-banner">
+      <div>
+        <p class="rewrite-banner-title">Rewrite selection</p>
+        <p class="rewrite-banner-preview">1) Highlight text on Gmail / LinkedIn / Slack / WhatsApp<br/>2) Tap Use selection — or paste below</p>
+      </div>
+      <button type="button" class="btn btn-secondary btn-compact" id="btn-use-selection">Use selection</button>
+    </div>
+  `;
+}
+
+function bindSelectionBanner() {
+  main.querySelector("#btn-start-rewrite")?.addEventListener("click", () => {
+    if (pageSelection) startRewrite(pageSelection);
+  });
+
+  const grab = async () => {
+    showToast("Looking for selection…");
+    pageSelection = await fetchPageSelection();
+    if (pageSelection && pageSelection.length >= 3) {
+      render();
+      return;
+    }
+    showToast("Still none — paste text in the box below");
+  };
+
+  main.querySelector("#btn-use-selection")?.addEventListener("click", grab);
+
+  main.querySelector("#btn-paste-rewrite")?.addEventListener("click", () => {
+    const raw = main.querySelector("#paste-rewrite-input")?.value?.trim() || "";
+    if (raw.length < 3) {
+      showToast("Paste a bit more text first");
+      return;
+    }
+    startRewrite(raw);
+  });
+}
+
+function startRewrite(source) {
+  rewriteState.active = true;
+  rewriteState.source = source;
+  rewriteState.variant = "soften";
+  rewriteState.draftText = transformFreeText(source, "soften", templatesData);
+  rewriteState.enhanced = false;
+  rewriteState.enhancing = false;
+  if (activeTab !== "rewrite") switchTab("rewrite");
+  else renderRewriteResult();
+}
+
+function renderRewriteResult() {
+  const variants = [
+    { id: "soften", label: "Softer" },
+    { id: "formal", label: "More formal" },
+    { id: "shorter", label: "Shorter" },
+    { id: "warmer", label: "Warmer" },
+    { id: "balanced", label: "Original tone" }
+  ];
+
+  const badge = rewriteState.enhancing
+    ? `<span class="badge">⏳ Enhancing…</span>`
+    : rewriteState.enhanced
+      ? `<span class="badge ai">✨ AI-enhanced</span>`
+      : `<span class="badge template">✏️ Rewrite</span>`;
+
+  main.innerHTML = `
+    <div class="back-row">
+      <button type="button" class="link-btn" id="btn-new-rewrite">← New rewrite</button>
+      ${badge}
+    </div>
+    <p class="step-label">Selected text</p>
+    <div class="preview-card preview-muted" id="source-preview">${escapeHtml(rewriteState.source)}</div>
+    <div class="variant-row">
+      ${variants
+        .map(
+          (v) =>
+            `<button type="button" class="variant-chip ${rewriteState.variant === v.id ? "active" : ""}" data-v="${v.id}">${v.label}</button>`
+        )
+        .join("")}
+    </div>
+    <p class="step-label">Result</p>
+    <div class="preview-card" id="rewrite-preview">${escapeHtml(rewriteState.draftText)}</div>
+    <div class="actions">
+      <button type="button" class="btn btn-secondary" id="btn-copy">Copy</button>
+      <button type="button" class="btn btn-primary" id="btn-insert">Insert</button>
+    </div>
+  `;
+
+  main.querySelector("#btn-new-rewrite").onclick = async () => {
+    rewriteState.active = false;
+    rewriteState.source = "";
+    rewriteState.draftText = "";
+    rewriteState.variant = "soften";
+    rewriteState.enhanced = false;
+    rewriteState.enhancing = false;
+    pageSelection = await fetchPageSelection();
+    renderRewriteTab();
+  };
+
+  main.querySelectorAll(".variant-chip").forEach((btn) => {
+    btn.onclick = async () => {
+      const v = btn.dataset.v;
+      rewriteState.variant = v;
+      rewriteState.enhanced = false;
+      // Offline rewrite from the original source (always visible change for non-balanced)
+      rewriteState.draftText = transformFreeText(rewriteState.source, v, templatesData);
+
+      if (isBuiltInAiAvailable() && v !== "balanced") {
+        rewriteState.enhancing = true;
+        renderRewriteResult();
+        const { text, enhanced } = await enhanceWithBuiltInAi(rewriteState.source, { variant: v });
+        rewriteState.enhancing = false;
+        if (enhanced && text && text.trim() && text.trim() !== rewriteState.source.trim()) {
+          rewriteState.draftText = text.trim();
+          rewriteState.enhanced = true;
+        }
+      }
+      renderRewriteResult();
+    };
+  });
+
+  main.querySelector("#btn-copy").onclick = () => copyAndRemember(rewriteState.draftText, "Rewrite");
+  main.querySelector("#btn-insert").onclick = () =>
+    insertAndRemember(rewriteState.draftText, "Rewrite");
 }
 
 /* ── Write tab ── */
@@ -157,12 +380,15 @@ function renderWrite() {
     `;
     const chips = main.querySelector("#chips");
     for (const opt of templatesData.q1) {
-      chips.appendChild(makeChip(opt.label, () => {
-        writeState.q1 = opt.id;
-        writeState.q2 = null;
-        writeState.step = 2;
-        render();
-      }));
+      chips.appendChild(
+        makeChip(opt.label, () => {
+          writeState.q1 = opt.id;
+          writeState.q2 = null;
+          writeState.step = 2;
+          writeState.preselectedFromPlatform = false;
+          render();
+        })
+      );
     }
     return;
   }
@@ -170,11 +396,15 @@ function renderWrite() {
   if (writeState.step === 2) {
     const situations = templatesData.q2[writeState.q1] || [];
     const q1Label = labelFor(templatesData.q1, writeState.q1);
+    const platformHint = writeState.preselectedFromPlatform
+      ? `<p class="platform-hint">Suggested for ${escapeHtml(PLATFORM_LABEL[panelContext?.platform] || "this page")} — change anytime</p>`
+      : "";
     main.innerHTML = `
       <div class="back-row">
         <button type="button" class="link-btn" id="btn-back">← Back</button>
       </div>
       <p class="answers-trail">${escapeHtml(q1Label)}</p>
+      ${platformHint}
       <p class="step-label">Step 2 of 3</p>
       <h2 class="question">What's the situation?</h2>
       <div class="chips" id="chips"></div>
@@ -182,15 +412,18 @@ function renderWrite() {
     main.querySelector("#btn-back").onclick = () => {
       writeState.step = 1;
       writeState.q1 = null;
+      writeState.preselectedFromPlatform = false;
       render();
     };
     const chips = main.querySelector("#chips");
     for (const opt of situations) {
-      chips.appendChild(makeChip(opt.label, () => {
-        writeState.q2 = opt.id;
-        writeState.step = 3;
-        render();
-      }));
+      chips.appendChild(
+        makeChip(opt.label, () => {
+          writeState.q2 = opt.id;
+          writeState.step = 3;
+          render();
+        })
+      );
     }
     return;
   }
@@ -232,7 +465,7 @@ async function generateDraft() {
   const result = getDraft(templatesData, writeState.q1, writeState.q2, writeState.q3);
   writeState.baseText = result.text;
   writeState.slots = unique([...result.slots, ...extractSlots(result.text)]);
-  writeState.slotValues = {};
+  writeState.slotValues = pickSlotDefaults(writeState.slots);
   writeState.variant = "balanced";
   writeState.enhanced = false;
   writeState.enhancing = isBuiltInAiAvailable();
@@ -247,26 +480,41 @@ async function generateDraft() {
       writeState.draftText = text;
       writeState.baseText = text;
       writeState.slots = extractSlots(text);
+      writeState.slotValues = pickSlotDefaults(writeState.slots);
       writeState.enhanced = true;
     }
     if (activeTab === "write" && writeState.step === 4) renderDraft();
   }
 }
 
+function pickSlotDefaults(slots) {
+  const defaults = settings.slotDefaults || {};
+  const values = {};
+  for (const slot of slots) {
+    if (defaults[slot]) values[slot] = defaults[slot];
+  }
+  return values;
+}
+
 function renderDraft() {
   const display = applySlotValues(writeState.draftText, writeState.slotValues);
+  const unfilled = remainingSlots(writeState.draftText, writeState.slotValues);
   const badge = writeState.enhancing
     ? `<span class="badge">⏳ Enhancing…</span>`
     : writeState.enhanced
       ? `<span class="badge ai">✨ AI-enhanced</span>`
       : `<span class="badge template">📝 Template</span>`;
 
+  const slotWarn = unfilled.length
+    ? `<p class="slot-warn">${unfilled.length} blank${unfilled.length > 1 ? "s" : ""} left — tap yellow slots to fill</p>`
+    : "";
+
   main.innerHTML = `
     <div class="back-row">
       <button type="button" class="link-btn" id="btn-restart">← Start over</button>
       ${badge}
     </div>
-    <p class="answers-trail">${escapeHtml(trailText())}</p>
+    <p class="answers-trail">${escapeHtml(trailText() || "Recent draft")}</p>
     <div class="variant-row">
       <button type="button" class="variant-chip ${writeState.variant === "balanced" ? "active" : ""}" data-v="balanced">Balanced</button>
       <button type="button" class="variant-chip ${writeState.variant === "formal" ? "active" : ""}" data-v="formal">More formal</button>
@@ -274,6 +522,7 @@ function renderDraft() {
       <button type="button" class="variant-chip ${writeState.variant === "warmer" ? "active" : ""}" data-v="warmer">Warmer</button>
     </div>
     <div class="preview-card" id="preview"></div>
+    ${slotWarn}
     <div id="slot-editor"></div>
     <div class="actions">
       <button type="button" class="btn btn-secondary" id="btn-copy">Copy</button>
@@ -282,14 +531,23 @@ function renderDraft() {
   `;
 
   main.querySelector("#btn-restart").onclick = () => {
-    writeState.step = 1;
-    writeState.q1 = null;
-    writeState.q2 = null;
     writeState.draftText = "";
     writeState.baseText = "";
     writeState.enhanced = false;
     writeState.enhancing = false;
     writeState.editingSlot = null;
+    writeState.slotValues = {};
+    writeState.q2 = null;
+    const q1 = platformToQ1(panelContext?.platform);
+    if (q1) {
+      writeState.q1 = q1;
+      writeState.step = 2;
+      writeState.preselectedFromPlatform = true;
+    } else {
+      writeState.q1 = null;
+      writeState.step = 1;
+      writeState.preselectedFromPlatform = false;
+    }
     render();
   };
 
@@ -347,10 +605,14 @@ function renderDraft() {
     const input = editor.querySelector("#slot-input");
     input.focus();
     input.select();
-    const save = () => {
+    const save = async () => {
       const val = input.value.trim();
-      if (val) writeState.slotValues[slot] = val;
-      else delete writeState.slotValues[slot];
+      if (val) {
+        writeState.slotValues[slot] = val;
+        settings.slotDefaults = await saveSlotDefaults({ [slot]: val });
+      } else {
+        delete writeState.slotValues[slot];
+      }
       writeState.editingSlot = null;
       renderDraft();
     };
@@ -370,12 +632,24 @@ function renderDraft() {
 
   main.querySelector("#btn-copy").onclick = () => {
     const finalText = applySlotValues(writeState.draftText, writeState.slotValues);
-    copyText(finalText);
+    withEmptySlotCheck(finalText, () => copyAndRemember(finalText, trailText()));
   };
   main.querySelector("#btn-insert").onclick = () => {
     const finalText = applySlotValues(writeState.draftText, writeState.slotValues);
-    insertText(finalText);
+    withEmptySlotCheck(finalText, () => insertAndRemember(finalText, trailText()));
   };
+}
+
+function withEmptySlotCheck(finalText, proceed) {
+  const left = extractSlots(finalText);
+  if (!left.length) {
+    proceed();
+    return;
+  }
+  const ok = window.confirm(
+    `${left.length} blank${left.length > 1 ? "s" : ""} still empty (${left.map((s) => `[${s}]`).join(", ")}).\n\nContinue anyway?`
+  );
+  if (ok) proceed();
 }
 
 function renderPreviewHtml(text) {
@@ -436,7 +710,6 @@ function renderPhrases() {
     container.appendChild(acc);
   }
 
-  // Open first accordion by default if no favorites focus
   if (!favorites.size) {
     container.querySelector(".accordion")?.classList.add("open");
   }
@@ -476,9 +749,9 @@ function bindPhraseActions(root) {
   });
 }
 
-/* ── Search tab ── */
+/* ── Find tab ── */
 
-function renderSearch() {
+function renderFind() {
   const q = globalSearch.value.trim();
   if (!q) {
     main.innerHTML = `
@@ -537,6 +810,16 @@ function unique(arr) {
   return [...new Set(arr)];
 }
 
+async function copyAndRemember(text, trail) {
+  await copyText(text);
+  settings.recentDrafts = await pushRecentDraft({ text, trail });
+}
+
+async function insertAndRemember(text, trail) {
+  await insertText(text);
+  settings.recentDrafts = await pushRecentDraft({ text, trail });
+}
+
 async function copyText(text) {
   try {
     await navigator.clipboard.writeText(text);
@@ -552,31 +835,57 @@ async function copyText(text) {
   }
 }
 
-function insertText(text) {
-  chrome.runtime.sendMessage(
-    {
-      type: "INSERT_INTO_FIELD",
-      text,
-      tabId: panelContext?.tabId,
-      frameId: panelContext?.frameId
-    },
-    (res) => {
-      if (res?.ok) showToast("Inserted");
-      else {
-        copyText(text);
-        showToast("Copied (insert unavailable)");
+async function insertText(text) {
+  // Refresh tab context — Pop out window is not a tab, so we must use stored Gmail/etc tabId
+  try {
+    const ctx = await getPanelContext();
+    if (ctx) panelContext = ctx;
+  } catch {
+    /* keep existing */
+  }
+
+  const frameId =
+    typeof pageSelectionFrameId === "number"
+      ? pageSelectionFrameId
+      : typeof panelContext?.frameId === "number"
+        ? panelContext.frameId
+        : undefined;
+
+  return new Promise((resolve) => {
+    chrome.runtime.sendMessage(
+      {
+        type: "INSERT_INTO_FIELD",
+        text,
+        tabId: panelContext?.tabId,
+        frameId
+      },
+      async (res) => {
+        void chrome.runtime.lastError;
+        if (res?.ok) {
+          showToast("Inserted into page");
+          resolve(true);
+        } else {
+          await copyText(text);
+          showToast(res?.error || "No compose box found — copied instead");
+          resolve(false);
+        }
       }
-    }
-  );
+    );
+  });
 }
 
-function closePanel() {
-  // Works for popup windows; side panel users can dismiss via Chrome UI
-  try {
-    window.close();
-  } catch {
-    /* ignore */
-  }
+function openInWindow() {
+  chrome.runtime.sendMessage(
+    {
+      type: "OPEN_UI",
+      mode: "window",
+      tabId: panelContext?.tabId,
+      platform: panelContext?.platform
+    },
+    () => {
+      void chrome.runtime.lastError;
+    }
+  );
 }
 
 function showToast(msg) {
@@ -589,7 +898,7 @@ function showToast(msg) {
   toast.textContent = msg;
   toast.classList.add("show");
   clearTimeout(showToast._t);
-  showToast._t = setTimeout(() => toast.classList.remove("show"), 1600);
+  showToast._t = setTimeout(() => toast.classList.remove("show"), 2000);
 }
 
 function escapeHtml(s) {

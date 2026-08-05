@@ -26,7 +26,7 @@ ToneDesk is a Chrome extension (Manifest V3). Use Google Chrome (or another Chro
 
 **Otherwise, from GitHub:**
 
-1. Open <https://github.com/Jennyzzheng/tonedesk>
+1. Open <https://github.com/KingHenryZ/ToneDesk>
 2. Click the green **Code** button → **Download ZIP** (or clone with git)
 3. Unzip / clone it somewhere you'll remember
 
@@ -50,17 +50,21 @@ ToneDesk should appear in your extensions list with its icon.
 ### First: open the panel once
 
 1. After installing (or after any update): click **Reload** on the extension card, then hard-refresh the site you’re on (**Cmd+Shift+R** / **Ctrl+Shift+R**)
-2. Click the **ToneDesk** icon in the Chrome toolbar
-3. Choose **Open in window** (always works) or **Open side panel**
+2. Click the **ToneDesk** icon in the Chrome toolbar — the **side panel** opens directly
+3. Prefer a floating window? tap **Pop out** in the panel header
 
-You’ll see three tabs: **Write**, **Phrases**, and **Search**.
+You’ll see four tabs: **Rewrite**, **Write**, **Phrases**, and **Find**.
 
 ### Then: write on a real page
 
 1. Open **Gmail**, **LinkedIn**, **Slack (web)**, or **WhatsApp Web**
-2. Focus a message / compose field — a small **💼** button appears near the field (and a corner launcher on the page)
-3. Tap **💼**, or open ToneDesk from the toolbar again
-4. Use **Write** / **Phrases** / **Search**, then **Copy** or **Insert** into the page
+2. Focus a message / compose field — a small ToneDesk button appears near the field (optional shortcut)
+3. Or open ToneDesk from the Chrome toolbar (side panel)
+4. Use **Rewrite** / **Write** / **Phrases** / **Find**, then **Copy** or **Insert** into the page
+
+### Rewrite
+
+Highlight text on the page → **Use selection**, or paste a draft. Pick Softer / More formal / Shorter / Warmer, then **Copy**, **Insert**, or **Replace selection**.
 
 ### Write flow
 
@@ -74,7 +78,7 @@ Then you get a full draft. Tap highlighted `[slots]` to fill them in. Switch ton
 
 Browse categories as accordions. **Copy**, **Insert**, or ★ favorite phrases. Favorites stay on your machine via `chrome.storage.local`.
 
-### Search
+### Find
 
 Type in the top bar (e.g. `follow up`, `say no`, `apologize`) for fuzzy top-5 matches from the phrase bank.
 
@@ -84,9 +88,10 @@ Type in the top bar (e.g. `follow up`, `say no`, `apologize`) for fuzzy top-5 ma
 
 | Piece | What you'll find |
 |---|---|
+| **Rewrite** | Polish selected or pasted text (softer / formal / shorter / warmer) |
 | **Write** | 3-question chip flow → template draft with `[slots]` and tone variants |
 | **Phrases** | Searchable bank of openers, acknowledgments, soft pushback, closers, and more |
-| **Search** | Fuzzy match over the phrase bank (intent hints for queries like “say no”) |
+| **Find** | Fuzzy match over the phrase bank (intent hints for queries like “say no”) |
 | **Insert / Copy** | Put the draft into the focused field on the page, or copy to clipboard |
 | **Optional AI polish** | If Chrome Built-in AI (`window.ai.languageModel`) is available, drafts can be polished on-device |
 
@@ -131,7 +136,7 @@ tonedesk/                  # this folder (manifest.json at the root)
   data/phrases.json        # Layer 1
   data/templates.json      # Layer 2
   content/                 # FAB + insert into page fields
-  panel/                   # Write / Phrases / Search UI
+  panel/                   # Rewrite / Write / Phrases / Find UI
   shared/                  # storage, fuzzy search, AI, templates
   background/              # message relay + open UI
   popup/                   # toolbar launcher

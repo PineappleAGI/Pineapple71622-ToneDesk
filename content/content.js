@@ -5,33 +5,65 @@
   window.__tonedeskLoaded = true;
 
   const BLUR_DELAY_MS = 300;
-  const IS_TOP = (() => {
-    try {
-      return window === window.top;
-    } catch {
-      return false;
-    }
-  })();
 
   let fab = null;
-  let cornerBtn = null;
   let activeField = null;
+  let lastEditable = null;
   let blurTimer = null;
+  /** Kept when focus moves to the extension UI (selection often clears on panel open). */
+  let lastSelection = "";
 
   init();
 
   function init() {
     createFab();
-    if (IS_TOP) createCornerLauncher();
     bindFocusListeners();
+    bindSelectionCache();
 
     chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       if (message.type === "INSERT_INTO_FIELD") {
-        sendResponse({ ok: insertText(message.text) });
+        sendResponse({ ok: insertText(message.text), score: scoreEditable(lastEditable || activeField) });
+        return true;
+      }
+      if (message.type === "GET_SELECTION") {
+        const live = getSelectedText();
+        const text = live || lastSelection || "";
+        sendResponse({ ok: true, text });
+        return true;
+      }
+      if (message.type === "PROBE_EDITABLE") {
+        const el = bestEditableInFrame();
+        sendResponse({
+          ok: !!el,
+          score: scoreEditable(el),
+          hasLast: !!(lastEditable && document.contains(lastEditable))
+        });
         return true;
       }
       return false;
     });
+  }
+
+  function bindSelectionCache() {
+    let cacheTimer = null;
+    const capture = () => {
+      const text = getSelectedText();
+      if (!text || text.length < 3) return;
+      lastSelection = text;
+      clearTimeout(cacheTimer);
+      cacheTimer = setTimeout(() => {
+        try {
+          chrome.runtime.sendMessage({ type: "CACHE_SELECTION", text: lastSelection }, () => {
+            void chrome.runtime.lastError;
+          });
+        } catch {
+          /* ignore */
+        }
+      }, 80);
+    };
+    document.addEventListener("selectionchange", capture, true);
+    document.addEventListener("mouseup", capture, true);
+    document.addEventListener("keyup", capture, true);
   }
 
   function createFab() {
@@ -40,8 +72,12 @@
     fab.id = "tonedesk-fab";
     fab.type = "button";
     fab.setAttribute("aria-label", "Open ToneDesk");
-    fab.title = "ToneDesk";
-    fab.textContent = "💼";
+    fab.title = "Open ToneDesk";
+    const img = document.createElement("img");
+    img.src = chrome.runtime.getURL("icons/brand.svg");
+    img.alt = "";
+    img.draggable = false;
+    fab.appendChild(img);
     fab.addEventListener("mousedown", (e) => {
       e.preventDefault();
       e.stopPropagation();
@@ -52,22 +88,6 @@
       requestOpen();
     });
     document.documentElement.appendChild(fab);
-  }
-
-  function createCornerLauncher() {
-    if (cornerBtn || document.getElementById("tonedesk-corner")) return;
-    cornerBtn = document.createElement("button");
-    cornerBtn.id = "tonedesk-corner";
-    cornerBtn.type = "button";
-    cornerBtn.setAttribute("aria-label", "Open ToneDesk");
-    cornerBtn.title = "Open ToneDesk";
-    cornerBtn.textContent = "💼";
-    cornerBtn.addEventListener("click", (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      requestOpen();
-    });
-    document.documentElement.appendChild(cornerBtn);
   }
 
   function requestOpen() {
@@ -97,10 +117,28 @@
   function onFocusIn(event) {
     const el = event.target;
     if (!isEditable(el)) return;
-    if (el.closest("#tonedesk-fab, #tonedesk-corner")) return;
+    if (el.closest("#tonedesk-fab")) return;
     clearTimeout(blurTimer);
     activeField = el;
+    lastEditable = el;
     showFabNear(el);
+    rememberFocus();
+  }
+
+  function rememberFocus() {
+    try {
+      chrome.runtime.sendMessage(
+        {
+          type: "CACHE_FOCUS",
+          score: scoreEditable(lastEditable)
+        },
+        () => {
+          void chrome.runtime.lastError;
+        }
+      );
+    } catch {
+      /* ignore */
+    }
   }
 
   function onFocusOut() {
@@ -108,10 +146,12 @@
       const focused = document.activeElement;
       if (focused && isEditable(focused)) {
         activeField = focused;
+        lastEditable = focused;
         showFabNear(focused);
         return;
       }
       hideFab();
+      // Keep lastEditable — panel focus must not clear the compose target
     }, BLUR_DELAY_MS);
   }
 
@@ -179,27 +219,81 @@
     return "unknown";
   }
 
-  function insertText(text) {
+  function getSelectedText() {
+    const sel = window.getSelection?.()?.toString()?.trim() || "";
+    if (sel) return sel;
+
     const el =
-      activeField && document.contains(activeField) ? activeField : findLikelyEditable();
-    if (!el) return false;
-    el.focus();
-    if (el.isContentEditable) return insertIntoContentEditable(el, text);
-    return insertIntoInput(el, text);
+      lastEditable && document.contains(lastEditable)
+        ? lastEditable
+        : activeField && document.contains(activeField)
+          ? activeField
+          : document.activeElement && isEditable(document.activeElement)
+            ? document.activeElement
+            : null;
+
+    if (el && typeof el.selectionStart === "number" && typeof el.selectionEnd === "number") {
+      const sliced = String(el.value || "").slice(el.selectionStart, el.selectionEnd).trim();
+      if (sliced) return sliced;
+    }
+    return "";
   }
 
-  function findLikelyEditable() {
+  function scoreEditable(el) {
+    if (!el || !document.contains(el) || !isEditable(el)) return 0;
+    const rect = el.getBoundingClientRect();
+    if (rect.width < 40 || rect.height < 18) return 0;
+
+    let score = rect.width * rect.height;
+    if (el.isContentEditable) score *= 4;
+    if (el.tagName === "TEXTAREA") score *= 3;
+    if (rect.height >= 60) score *= 2;
+
+    const meta = `${el.getAttribute("aria-label") || ""} ${el.getAttribute("role") || ""} ${el.className || ""} ${el.id || ""}`.toLowerCase();
+    if (/compos|message|msg-form|ql-editor|lexical|ProseMirror|editor|chat-input|msg_input/.test(meta)) {
+      score *= 5;
+    }
+    // Penalize search / filter boxes
+    if (/search|filter|query/.test(meta) || (el.tagName === "INPUT" && (el.type || "") === "search")) {
+      score *= 0.05;
+    }
+    if (el === lastEditable) score *= 3;
+    return score;
+  }
+
+  function bestEditableInFrame() {
+    if (lastEditable && document.contains(lastEditable) && isEditable(lastEditable)) {
+      return lastEditable;
+    }
+    if (activeField && document.contains(activeField) && isEditable(activeField)) {
+      return activeField;
+    }
     const focused = document.activeElement;
     if (isEditable(focused)) return focused;
-    return (
-      [...document.querySelectorAll('[contenteditable="true"], textarea, input[type="text"]')].find(
-        (el) => {
-          if (isSensitiveField(el)) return false;
-          const rect = el.getBoundingClientRect();
-          return rect.width > 40 && rect.height > 20 && isEditable(el);
-        }
-      ) || null
+
+    let best = null;
+    let bestScore = 0;
+    const nodes = document.querySelectorAll(
+      '[contenteditable="true"], [contenteditable=""], textarea, input[type="text"], input:not([type])'
     );
+    for (const el of nodes) {
+      const s = scoreEditable(el);
+      if (s > bestScore) {
+        bestScore = s;
+        best = el;
+      }
+    }
+    return bestScore > 0 ? best : null;
+  }
+
+  function insertText(text) {
+    const value = String(text || "");
+    if (!value) return false;
+    const el = bestEditableInFrame();
+    if (!el) return false;
+    el.focus();
+    if (el.isContentEditable) return insertIntoContentEditable(el, value);
+    return insertIntoInput(el, value);
   }
 
   function insertIntoInput(el, text) {
@@ -224,15 +318,47 @@
   }
 
   function insertIntoContentEditable(el, text) {
+    el.focus();
     const selection = window.getSelection();
-    if (selection && selection.rangeCount > 0 && el.contains(selection.anchorNode)) {
-      if (document.execCommand("insertText", false, text)) {
+    try {
+      if (!selection || selection.rangeCount === 0 || !el.contains(selection.anchorNode)) {
+        const range = document.createRange();
+        range.selectNodeContents(el);
+        range.collapse(false);
+        selection?.removeAllRanges();
+        selection?.addRange(range);
+      }
+    } catch {
+      /* ignore */
+    }
+
+    if (document.execCommand("insertText", false, text)) {
+      el.dispatchEvent(
+        new InputEvent("input", { bubbles: true, inputType: "insertText", data: text })
+      );
+      return true;
+    }
+
+    try {
+      const sel = window.getSelection();
+      if (sel && sel.rangeCount) {
+        const range = sel.getRangeAt(0);
+        range.deleteContents();
+        const node = document.createTextNode(text);
+        range.insertNode(node);
+        range.setStartAfter(node);
+        range.collapse(true);
+        sel.removeAllRanges();
+        sel.addRange(range);
         el.dispatchEvent(
           new InputEvent("input", { bubbles: true, inputType: "insertText", data: text })
         );
         return true;
       }
+    } catch {
+      /* fall through */
     }
+
     el.textContent =
       el.textContent.trim() === "" ? text : `${el.textContent.trim()}\n\n${text}`;
     el.dispatchEvent(

@@ -11,6 +11,14 @@ const SYSTEM_PROMPT = `You are a professional business communication editor. The
 - Close with an open, collaborative sentiment
 Return only the revised message. No explanation.`;
 
+const VARIANT_PROMPTS = {
+  soften: `Rewrite the message to be softer and more tactful. Keep the meaning. Return only the rewritten message.`,
+  formal: `Rewrite the message to be more formal and professional. Keep the meaning. Return only the rewritten message.`,
+  warmer: `Rewrite the message to sound warmer and friendlier. Keep the meaning. Return only the rewritten message.`,
+  shorter: `Rewrite the message to be shorter and tighter. Keep the meaning. Return only the rewritten message.`,
+  balanced: `Lightly polish the message for clarity. Keep the meaning and length. Return only the rewritten message.`
+};
+
 export function isBuiltInAiAvailable() {
   try {
     return (
@@ -26,9 +34,11 @@ export function isBuiltInAiAvailable() {
 
 /**
  * Polish a draft with Gemini Nano when available.
+ * @param {string} draft
+ * @param {{ variant?: string }} [opts]
  * @returns {{ text: string, enhanced: boolean, error?: string }}
  */
-export async function enhanceWithBuiltInAi(draft) {
+export async function enhanceWithBuiltInAi(draft, opts = {}) {
   if (!draft || !String(draft).trim()) {
     return { text: draft || "", enhanced: false };
   }
@@ -43,8 +53,13 @@ export async function enhanceWithBuiltInAi(draft) {
       return { text: draft, enhanced: false, error: `AI status: ${availability}` };
     }
 
+    const variant = opts.variant || "";
+    const systemPrompt = VARIANT_PROMPTS[variant]
+      ? `${SYSTEM_PROMPT}\n\nSpecific task: ${VARIANT_PROMPTS[variant]}`
+      : SYSTEM_PROMPT;
+
     const session = await window.ai.languageModel.create({
-      systemPrompt: SYSTEM_PROMPT
+      systemPrompt
     });
 
     try {

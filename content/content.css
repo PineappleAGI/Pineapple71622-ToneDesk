@@ -1,45 +1,31 @@
-/* ToneDesk page launchers */
-
-#tonedesk-corner {
-  position: fixed !important;
-  z-index: 2147483645 !important;
-  right: 20px !important;
-  bottom: 20px !important;
-  width: 48px !important;
-  height: 48px !important;
-  border: none !important;
-  border-radius: 14px !important;
-  background: #1a3a4a !important;
-  color: #fff !important;
-  font-size: 22px !important;
-  line-height: 1 !important;
-  cursor: pointer !important;
-  box-shadow: 0 6px 18px rgba(26, 58, 74, 0.4) !important;
-  padding: 0 !important;
-}
-
-#tonedesk-corner:hover {
-  background: #244a5e !important;
-}
+/* ToneDesk — compose-field launcher only (toolbar / side panel open the UI otherwise) */
 
 #tonedesk-fab {
   position: fixed !important;
   z-index: 2147483646 !important;
-  width: 44px !important;
-  height: 44px !important;
+  width: 40px !important;
+  height: 40px !important;
   border: none !important;
-  border-radius: 12px !important;
+  border-radius: 11px !important;
   background: #1a3a4a !important;
   color: #fff !important;
-  font-size: 20px !important;
+  font-size: 0 !important;
   line-height: 1 !important;
   cursor: pointer !important;
   box-shadow: 0 4px 14px rgba(26, 58, 74, 0.35) !important;
   opacity: 0;
   pointer-events: none;
   padding: 0 !important;
+  overflow: hidden !important;
   transition: opacity 0.18s ease, transform 0.18s ease;
   transform: scale(0.88);
+}
+
+#tonedesk-fab img {
+  width: 100% !important;
+  height: 100% !important;
+  display: block !important;
+  pointer-events: none !important;
 }
 
 #tonedesk-fab.tonedesk-visible {

@@ -4,12 +4,22 @@ const DEFAULTS = {
   lastRelationship: "colleague",
   preferredTone: "balanced",
   favoritePhrases: [],
-  hasSeenTooltip: false
+  hasSeenTooltip: false,
+  slotDefaults: {},
+  recentDrafts: []
 };
+
+const MAX_RECENT = 8;
 
 export async function getSettings() {
   const stored = await chrome.storage.local.get(Object.keys(DEFAULTS));
-  return { ...DEFAULTS, ...stored };
+  return {
+    ...DEFAULTS,
+    ...stored,
+    slotDefaults: { ...DEFAULTS.slotDefaults, ...(stored.slotDefaults || {}) },
+    recentDrafts: Array.isArray(stored.recentDrafts) ? stored.recentDrafts : [],
+    favoritePhrases: Array.isArray(stored.favoritePhrases) ? stored.favoritePhrases : []
+  };
 }
 
 export async function saveSettings(partial) {
@@ -32,6 +42,35 @@ export async function toggleFavorite(phrase) {
   return favoritePhrases;
 }
 
+export async function saveSlotDefaults(values) {
+  const settings = await getSettings();
+  const slotDefaults = { ...settings.slotDefaults };
+  for (const [slot, value] of Object.entries(values || {})) {
+    const v = String(value || "").trim();
+    if (v) slotDefaults[slot] = v;
+  }
+  await chrome.storage.local.set({ slotDefaults });
+  return slotDefaults;
+}
+
+export async function pushRecentDraft({ text, trail }) {
+  const trimmed = String(text || "").trim();
+  if (!trimmed) return [];
+  const settings = await getSettings();
+  const entry = {
+    id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+    text: trimmed,
+    trail: String(trail || "").trim(),
+    createdAt: Date.now()
+  };
+  const recentDrafts = [
+    entry,
+    ...(settings.recentDrafts || []).filter((d) => d.text !== trimmed)
+  ].slice(0, MAX_RECENT);
+  await chrome.storage.local.set({ recentDrafts });
+  return recentDrafts;
+}
+
 export function detectPlatform(url = "") {
   const host = String(url).toLowerCase();
   if (host.includes("mail.google.com")) return "gmail";
@@ -39,4 +78,19 @@ export function detectPlatform(url = "") {
   if (host.includes("slack.com")) return "slack";
   if (host.includes("whatsapp.com")) return "whatsapp";
   return "unknown";
+}
+
+/** Map host platform → Write Q1 id */
+export function platformToQ1(platform) {
+  switch (platform) {
+    case "gmail":
+      return "reply";
+    case "linkedin":
+      return "linkedin";
+    case "slack":
+    case "whatsapp":
+      return "slack";
+    default:
+      return null;
+  }
 }
