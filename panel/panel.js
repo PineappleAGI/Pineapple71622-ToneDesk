@@ -3,7 +3,6 @@ import {
   saveSettings,
   toggleFavorite,
   saveSlotDefaults,
-  pushRecentDraft,
   platformToQ1
 } from "../shared/storage.js";
 import { fuzzySearch } from "../shared/fuzzy.js";
@@ -835,14 +834,12 @@ function unique(arr) {
   return [...new Set(arr)];
 }
 
-async function copyAndRemember(text, trail) {
+async function copyAndRemember(text) {
   await copyText(text);
-  settings.recentDrafts = await pushRecentDraft({ text, trail });
 }
 
-async function insertAndRemember(text, trail) {
+async function insertAndRemember(text) {
   await insertText(text);
-  settings.recentDrafts = await pushRecentDraft({ text, trail });
 }
 
 async function copyText(text) {

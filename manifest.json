@@ -1,10 +1,9 @@
 {
   "manifest_version": 3,
   "name": "ToneDesk",
-  "version": "2.2.3",
+  "version": "2.3.0",
   "description": "Rewrite and draft tactful business messages where you already write.",
   "permissions": [
-    "activeTab",
     "scripting",
     "storage",
     "sidePanel"
@@ -53,7 +52,7 @@
   ],
   "web_accessible_resources": [
     {
-      "resources": ["panel/*", "data/*", "shared/*", "icons/*"],
+      "resources": ["icons/brand.svg"],
       "matches": [
         "https://mail.google.com/*",
         "https://*.linkedin.com/*",

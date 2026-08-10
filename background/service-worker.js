@@ -10,10 +10,16 @@ async function enableSidePanelOnClick() {
 
 chrome.runtime.onInstalled.addListener(() => {
   enableSidePanelOnClick();
+  purgeLegacyDiskCache();
 });
 
 chrome.runtime.onStartup.addListener(() => {
   enableSidePanelOnClick();
+  purgeLegacyDiskCache();
+});
+
+chrome.tabs.onRemoved.addListener((tabId) => {
+  clearTabState(tabId);
 });
 
 enableSidePanelOnClick();
@@ -494,33 +500,28 @@ async function insertViaScripting(tabId, text, preferredFrameId) {
   return { ok: false, error: "No compose box found" };
 }
 
+/* Message text never touches disk — session storage only, cleared when Chrome closes. */
+
 async function saveSelectionCache(tabId, payload) {
   try {
     await chrome.storage.session.set({ [`sel:${tabId}`]: payload });
   } catch {
-    await chrome.storage.local.set({ [`sel:${tabId}`]: payload });
+    /* no session storage — skip caching rather than persisting user text */
   }
 }
 
 async function loadSelectionCache(tabId) {
   try {
     const data = await chrome.storage.session.get(`sel:${tabId}`);
-    if (data[`sel:${tabId}`]?.text) return data[`sel:${tabId}`];
+    return data[`sel:${tabId}`]?.text ? data[`sel:${tabId}`] : null;
   } catch {
-    /* fall through */
+    return null;
   }
-  const local = await chrome.storage.local.get(`sel:${tabId}`);
-  return local[`sel:${tabId}`] || null;
 }
 
 async function clearSelectionCache(tabId) {
   try {
     await chrome.storage.session.remove(`sel:${tabId}`);
-  } catch {
-    /* ignore */
-  }
-  try {
-    await chrome.storage.local.remove(`sel:${tabId}`);
   } catch {
     /* ignore */
   }
@@ -540,19 +541,17 @@ async function saveFocusCache(tabId, payload) {
   try {
     await chrome.storage.session.set({ [`focus:${tabId}`]: payload });
   } catch {
-    await chrome.storage.local.set({ [`focus:${tabId}`]: payload });
+    /* ignore */
   }
 }
 
 async function loadFocusCache(tabId) {
   try {
     const data = await chrome.storage.session.get(`focus:${tabId}`);
-    if (data[`focus:${tabId}`]) return data[`focus:${tabId}`];
+    return data[`focus:${tabId}`] || null;
   } catch {
-    /* fall through */
+    return null;
   }
-  const local = await chrome.storage.local.get(`focus:${tabId}`);
-  return local[`focus:${tabId}`] || null;
 }
 
 async function openUi({ tabId, frameId, platform, mode } = {}) {
@@ -620,28 +619,63 @@ async function refreshPanelContext(tabId) {
 async function savePanelContext(ctx) {
   const payload = { ...ctx, openedAt: Date.now() };
   try {
-    await chrome.storage.session.set({ [`panelContext:${ctx.tabId}`]: payload });
+    await chrome.storage.session.set({
+      [`panelContext:${ctx.tabId}`]: payload,
+      lastPanelContext: payload
+    });
   } catch {
     /* ignore */
   }
-  await chrome.storage.local.set({ lastPanelContext: payload });
 }
 
 async function loadPanelContext(tabId) {
   try {
-    const data = await chrome.storage.session.get(`panelContext:${tabId}`);
-    if (data[`panelContext:${tabId}`]) return data[`panelContext:${tabId}`];
+    const data = await chrome.storage.session.get([`panelContext:${tabId}`, "lastPanelContext"]);
+    return data[`panelContext:${tabId}`] || data.lastPanelContext || null;
+  } catch {
+    return null;
+  }
+}
+
+async function clearTabState(tabId) {
+  try {
+    await chrome.storage.session.remove([
+      `sel:${tabId}`,
+      `focus:${tabId}`,
+      `panelContext:${tabId}`
+    ]);
   } catch {
     /* ignore */
   }
-  const local = await chrome.storage.local.get("lastPanelContext");
-  return local.lastPanelContext || null;
+}
+
+/** Purge user text written to disk by earlier versions. */
+async function purgeLegacyDiskCache() {
+  try {
+    const all = await chrome.storage.local.get(null);
+    const stale = Object.keys(all).filter(
+      (key) =>
+        key.startsWith("sel:") ||
+        key.startsWith("focus:") ||
+        key.startsWith("panelContext:") ||
+        key === "lastPanelContext" ||
+        key === "recentDrafts"
+    );
+    if (stale.length) await chrome.storage.local.remove(stale);
+  } catch {
+    /* ignore */
+  }
 }
 
 async function getActiveTabId() {
   // Prefer last known host tab (Pop out window has no tabs of its own)
-  const last = await chrome.storage.local.get("lastPanelContext");
-  const cachedId = last.lastPanelContext?.tabId;
+  let cachedId = null;
+  try {
+    const last = await chrome.storage.session.get("lastPanelContext");
+    cachedId = last.lastPanelContext?.tabId || null;
+  } catch {
+    /* ignore */
+  }
   if (cachedId) {
     try {
       const tab = await chrome.tabs.get(cachedId);

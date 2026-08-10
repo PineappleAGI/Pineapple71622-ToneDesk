@@ -1,12 +1,10 @@
-# ToneDesk (Project71622)
+# ToneDesk
 
-A downloadable **Chrome extension** for people who write a lot of business messages. You answer a few chip questions (or browse a phrase bank); ToneDesk builds a tactful draft with fill-in blanks — then you copy it or insert it straight into the page.
+A **Chrome extension** for people who write a lot of business messages. Highlight something you already wrote and ToneDesk makes it softer, more formal, shorter, or warmer — or answer three quick questions and get a full draft with fill-in blanks.
 
 > Open Gmail, LinkedIn, Slack, or WhatsApp Web. ToneDesk helps you say the hard thing professionally — follow-ups, soft pushback, apologies, closers — without sounding cold or abrupt.
 
-**No account. No API key. No internet required.** Everything runs on-device in Chrome.
-
-This is a sibling project to [Skill71717 Pineapple Research Materials](https://github.com/KingHenryZ/Skill71717-Dossier): same “download → set up once → use” idea, different job (business writing instead of research dossiers).
+**No account. No API key. No internet required.** Everything runs on your own machine.
 
 ---
 
@@ -16,19 +14,15 @@ You only do this once.
 
 ### Step 1 — Make sure you have Chrome
 
-ToneDesk is a Chrome extension (Manifest V3). Use Google Chrome (or another Chromium browser that supports unpacked extensions and, optionally, Chrome’s Built-in AI).
+ToneDesk is a Manifest V3 extension. Use Google Chrome, or another Chromium browser that supports unpacked extensions (Edge, Brave, Arc).
 
-**No other tools to install.** No `npm install`, no build step, no backend. The extension is plain HTML/CSS/JS plus two JSON data files.
+**Nothing else to install.** No `npm install`, no build step, no backend. The extension is plain HTML, CSS, and JavaScript plus two JSON data files.
 
-### Step 2 — Get the extension folder
-
-**If you already have this repo locally** (e.g. `~/Project71622` or a clone of `tonedesk`), skip the ZIP steps and use that folder.
-
-**Otherwise, from GitHub:**
+### Step 2 — Download the extension folder
 
 1. Open <https://github.com/KingHenryZ/ToneDesk>
 2. Click the green **Code** button → **Download ZIP** (or clone with git)
-3. Unzip / clone it somewhere you'll remember
+3. Unzip it somewhere you'll remember (e.g. your Desktop or `~/Documents/`)
 
 That folder is the extension. It must contain `manifest.json` at the top level.
 
@@ -37,119 +31,148 @@ That folder is the extension. It must contain `manifest.json` at the top level.
 1. Open Chrome and go to `chrome://extensions`
 2. Turn on **Developer mode** (top-right toggle)
 3. Click **Load unpacked**
-4. Select **this folder** (the one with `manifest.json` — not a parent directory)
+4. Select the folder you just unzipped — the one **containing `manifest.json`**, not its parent
 
-ToneDesk should appear in your extensions list with its icon.
+ToneDesk appears in your extensions list with a speech-bubble icon.
 
-**Pin it (recommended):** click the puzzle-piece icon in Chrome’s toolbar → pin ToneDesk so it’s always one click away.
+**Pin it (recommended):** click the puzzle-piece icon in Chrome's toolbar → pin ToneDesk so it's always one click away.
 
 ---
 
 ## Use It
 
-### First: open the panel once
-
-1. After installing (or after any update): click **Reload** on the extension card, then hard-refresh the site you’re on (**Cmd+Shift+R** / **Ctrl+Shift+R**)
-2. Click the **ToneDesk** icon in the Chrome toolbar — the **side panel** opens directly
-3. Prefer a floating window? tap **Pop out** in the panel header
-
-You’ll see four tabs: **Rewrite**, **Write**, **Phrases**, and **Find**.
-
-### Then: write on a real page
+### First: open the panel
 
 1. Open **Gmail**, **LinkedIn**, **Slack (web)**, or **WhatsApp Web**
-2. Focus a message / compose field — a small ToneDesk button appears near the field (optional shortcut)
-3. Or open ToneDesk from the Chrome toolbar (side panel)
-4. Use **Rewrite** / **Write** / **Phrases** / **Find**, then **Copy** or **Insert** into the page
+2. Click the **ToneDesk** icon in the Chrome toolbar — the **side panel** opens
+3. Prefer a floating window? Tap **Pop out** in the panel header
 
-### Rewrite
+You'll see four tabs: **Rewrite**, **Write**, **Phrases**, and **Find**.
 
-Highlight text on the page → **Use selection**, or paste a draft. Pick Softer / More formal / Shorter / Warmer, then **Copy**, **Insert**, or **Replace selection**.
+There's also a shortcut on the page itself: focus any compose box and a small ToneDesk button appears beside it.
 
-### Write flow
+### Rewrite — fix something you already wrote
+
+1. Highlight the text on the page, then tap **Use selection** (or paste a draft into the box)
+2. Pick a tone: **Softer**, **More formal**, **Shorter**, **Warmer**, or **Original tone**
+3. **Copy** it, or **Insert** it straight into the compose box
+
+Tap **← New rewrite** to start over with a fresh selection.
+
+### Write — build a draft from scratch
+
+Answer three questions:
 
 1. **What are you writing?** — reply / new email / LinkedIn / Slack·WhatsApp
-2. **What's the situation?** — chips adapt to step 1
+2. **What's the situation?** — options adapt to your first answer
 3. **Who are you talking to?** — boss / peer / junior / client / stranger
 
-Then you get a full draft. Tap highlighted `[slots]` to fill them in. Switch tone with **More formal** / **Shorter** / **Warmer**. Copy or insert into the page.
+You get a full draft. Tap the highlighted `[slots]` to fill in names and details, switch tone with **More formal** / **Shorter** / **Warmer**, then copy or insert.
 
-### Phrases
+### Phrases — a bank of proven lines
 
-Browse categories as accordions. **Copy**, **Insert**, or ★ favorite phrases. Favorites stay on your machine via `chrome.storage.local`.
+Browse categories like Openers, Soft Disagreements, Delivering Bad News, and Closers. **Copy**, **Insert**, or ★ favorite any line. Favorites are saved on your machine.
 
-### Find
+### Find — search the phrase bank
 
-Type in the top bar (e.g. `follow up`, `say no`, `apologize`) for fuzzy top-5 matches from the phrase bank.
+Type in the top bar (`follow up`, `say no`, `apologize`, `request`) for the five closest matches.
 
 ---
 
 ## What's In The Extension
 
-| Piece | What you'll find |
+| Piece | What it does |
 |---|---|
-| **Rewrite** | Polish selected or pasted text (softer / formal / shorter / warmer) |
-| **Write** | 3-question chip flow → template draft with `[slots]` and tone variants |
-| **Phrases** | Searchable bank of openers, acknowledgments, soft pushback, closers, and more |
-| **Find** | Fuzzy match over the phrase bank (intent hints for queries like “say no”) |
-| **Insert / Copy** | Put the draft into the focused field on the page, or copy to clipboard |
-| **Optional AI polish** | If Chrome Built-in AI (`window.ai.languageModel`) is available, drafts can be polished on-device |
+| **Rewrite** | Retones selected or pasted text — softer, formal, shorter, or warmer |
+| **Write** | Three-question flow → template draft with `[slots]` and tone variants |
+| **Phrases** | Browsable bank of professional openers, acknowledgments, pushback, and closers |
+| **Find** | Fuzzy search across the phrase bank, with intent hints for queries like "say no" |
+| **Copy / Insert** | Copy to clipboard, or drop the text into the compose box you were using |
+| **Optional AI polish** | If Chrome's built-in on-device AI is available, drafts get an extra polish pass |
 
 ---
 
-## How It Works (three layers)
+## How It Works
+
+Three layers, each usable on its own:
 
 ```text
-Open ToneDesk (toolbar / side panel / 💼 on page)
+Open ToneDesk (toolbar side panel, Pop out window, or the button by your compose box)
   → Layer 1: browse or search phrases.json
-  → Layer 2: answer 3 chips → templates.json draft + slots + tone variants
-  → Layer 3 (optional): Chrome Built-in AI polishes the draft if available
-  → Copy or Insert into Gmail / LinkedIn / Slack / WhatsApp
+  → Layer 2: answer 3 questions → templates.json draft + slots + tone variants
+  → Layer 3 (optional): Chrome's built-in AI polishes the result, on-device
+  → Copy, or Insert into Gmail / LinkedIn / Slack / WhatsApp
 ```
 
 ```text
 Page (content script)  ←→  background service worker  ←→  panel UI
-                              (open UI, tab context, insert relay)
+                            (opens the panel, tracks which
+                             compose box you were in, relays Insert)
 ```
 
-- **Phrase dictionary** — always available; no model
-- **Template engine** — pure logic over `data/templates.json`; works fully offline
-- **Chrome Built-in AI** — optional; when unavailable you still get **📝 Template** drafts
+- **Phrase dictionary** — always available, no model needed
+- **Template engine** — plain logic over `data/templates.json`, works fully offline
+- **Chrome Built-in AI** — optional; without it you still get **📝 Template** results
 
 ---
 
-## Privacy & Limits
+## Privacy
 
-- Everything runs **locally**. No account, no login, no analytics backend.
-- Host access is limited to Gmail, LinkedIn, Slack, and WhatsApp Web.
-- Favorites and preferences live in `chrome.storage.local` on your machine.
-- Optional AI uses Chrome’s on-device Prompt API when present — drafts are not sent to a ToneDesk server.
-- This is a writing aid, not a guarantee that a message is appropriate for every workplace. Review before you send.
+ToneDesk has no servers, so there is nowhere for your text to go.
+
+- **No network requests.** The extension never calls a remote API. The only files it loads are the two JSON files bundled inside it.
+- **No account, no telemetry, no analytics.**
+- **Your message text is never written to disk.** Selected text is held in Chrome's session storage while you work and is discarded when you close the tab or quit Chrome.
+- **Only your settings persist** — favorite phrases, preferred tone, and remembered slot values like your name.
+- **Optional AI runs on-device** via Chrome's built-in Prompt API. Nothing is uploaded.
+
+### Permissions and why they're needed
+
+| Permission | Why |
+|---|---|
+| Access to Gmail, LinkedIn, Slack, WhatsApp Web | Read the text you highlight and insert results into the compose box. No other site is touched. |
+| `scripting` | Find your compose box, including inside Gmail's nested frames |
+| `storage` | Save your settings and favorites |
+| `sidePanel` | Show the ToneDesk panel beside the page |
+
+Password, OTP, CVV, and similar sensitive fields are explicitly excluded — ToneDesk will not read from or write to them.
+
+### Limits
+
+ToneDesk is a writing aid, not a judge of what's appropriate for your workplace. **Read every draft before you send it.**
 
 ---
 
 ## Project layout
 
 ```
-tonedesk/                  # this folder (manifest.json at the root)
+ToneDesk/                  # this folder (manifest.json at the root)
   manifest.json
-  data/phrases.json        # Layer 1
-  data/templates.json      # Layer 2
-  content/                 # FAB + insert into page fields
+  data/phrases.json        # Layer 1 — the phrase bank
+  data/templates.json      # Layer 2 — draft templates and tone variants
+  content/                 # on-page button + insert into compose fields
   panel/                   # Rewrite / Write / Phrases / Find UI
-  shared/                  # storage, fuzzy search, AI, templates
-  background/              # message relay + open UI
-  popup/                   # toolbar launcher
+  shared/                  # storage, fuzzy search, AI, template engine
+  background/              # service worker: opens the panel, relays Insert
+  popup/                   # toolbar fallback launcher
   icons/
 ```
 
 ---
 
-## Updating after you change code
+## Developing
+
+There's no build step — edit the files and reload.
 
 1. Go to `chrome://extensions`
 2. Click **Reload** on ToneDesk
-3. Hard-refresh the host site (**Cmd+Shift+R** / **Ctrl+Shift+R**)
+3. Hard-refresh the site you're testing (**Cmd+Shift+R** / **Ctrl+Shift+R**)
+
+---
+
+## License
+
+MIT — see [LICENSE](LICENSE).
 
 ---
 
