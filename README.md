@@ -6,6 +6,10 @@ A **Chrome extension** for people who write a lot of business messages. Highligh
 
 **No account. No API key. No internet required.** Everything runs on your own machine.
 
+<img width="353" height="572" alt="Screenshot 2026-08-10 at 16 38 41" src="https://github.com/user-attachments/assets/fe7c16dd-9300-4245-b35d-e4613c356671" />
+<img width="355" height="683" alt="Screenshot 2026-08-10 at 16 37 26" src="https://github.com/user-attachments/assets/98135c27-d6dc-47bf-b69c-20c930ae274d" />
+
+
 ---
 
 ## Get It From GitHub
