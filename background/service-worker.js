@@ -78,6 +78,15 @@ async function handleMessage(message, sender) {
       return { ok: true };
     }
 
+    case "CLEAR_SELECTION": {
+      const tabId = message.tabId || sender.tab?.id || (await getActiveTabId());
+      if (!tabId) return { ok: false, error: "No active tab" };
+      await clearSelectionCache(tabId);
+      // Wipe content-script in-memory lastSelection across frames
+      await broadcastToFrames(tabId, { type: "CLEAR_SELECTION" });
+      return { ok: true };
+    }
+
     case "CACHE_FOCUS": {
       const tabId = sender.tab?.id || message.tabId;
       if (!tabId) return { ok: false };
@@ -502,6 +511,29 @@ async function loadSelectionCache(tabId) {
   }
   const local = await chrome.storage.local.get(`sel:${tabId}`);
   return local[`sel:${tabId}`] || null;
+}
+
+async function clearSelectionCache(tabId) {
+  try {
+    await chrome.storage.session.remove(`sel:${tabId}`);
+  } catch {
+    /* ignore */
+  }
+  try {
+    await chrome.storage.local.remove(`sel:${tabId}`);
+  } catch {
+    /* ignore */
+  }
+}
+
+async function broadcastToFrames(tabId, payload) {
+  const jobs = [];
+  for (let frameId = 0; frameId < 40; frameId++) {
+    jobs.push(
+      chrome.tabs.sendMessage(tabId, payload, { frameId }).catch(() => null)
+    );
+  }
+  await Promise.all(jobs);
 }
 
 async function saveFocusCache(tabId, payload) {

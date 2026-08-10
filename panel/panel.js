@@ -185,6 +185,24 @@ function fetchPageSelection() {
   });
 }
 
+function clearStoredSelection() {
+  pageSelection = "";
+  pageSelectionFrameId = undefined;
+  return new Promise((resolve) => {
+    try {
+      chrome.runtime.sendMessage(
+        { type: "CLEAR_SELECTION", tabId: panelContext?.tabId },
+        () => {
+          void chrome.runtime.lastError;
+          resolve();
+        }
+      );
+    } catch {
+      resolve();
+    }
+  });
+}
+
 function switchTab(tab, opts = {}) {
   activeTab = tab;
   document.querySelectorAll(".tab").forEach((el) => {
@@ -251,21 +269,27 @@ function selectionBannerHtml() {
 }
 
 function bindSelectionBanner() {
-  main.querySelector("#btn-start-rewrite")?.addEventListener("click", () => {
-    if (pageSelection) startRewrite(pageSelection);
-  });
-
-  const grab = async () => {
+  const grabLatest = async ({ start = false } = {}) => {
     showToast("Looking for selection…");
     pageSelection = await fetchPageSelection();
     if (pageSelection && pageSelection.length >= 3) {
-      render();
+      if (start) startRewrite(pageSelection);
+      else render();
       return;
     }
+    pageSelection = "";
     showToast("Still none — paste text in the box below");
+    if (!start) render();
   };
 
-  main.querySelector("#btn-use-selection")?.addEventListener("click", grab);
+  // Always re-fetch — never trust a stale banner preview
+  main.querySelector("#btn-start-rewrite")?.addEventListener("click", () => {
+    grabLatest({ start: true });
+  });
+
+  main.querySelector("#btn-use-selection")?.addEventListener("click", () => {
+    grabLatest({ start: false });
+  });
 
   main.querySelector("#btn-paste-rewrite")?.addEventListener("click", () => {
     const raw = main.querySelector("#paste-rewrite-input")?.value?.trim() || "";
@@ -333,7 +357,8 @@ function renderRewriteResult() {
     rewriteState.variant = "soften";
     rewriteState.enhanced = false;
     rewriteState.enhancing = false;
-    pageSelection = await fetchPageSelection();
+    // Wipe sticky selection so the next highlight isn't one step behind
+    await clearStoredSelection();
     renderRewriteTab();
   };
 

@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "ToneDesk",
-  "version": "2.2.2",
+  "version": "2.2.3",
   "description": "Rewrite and draft tactful business messages where you already write.",
   "permissions": [
     "activeTab",

@@ -31,6 +31,11 @@
         sendResponse({ ok: true, text });
         return true;
       }
+      if (message.type === "CLEAR_SELECTION") {
+        lastSelection = "";
+        sendResponse({ ok: true });
+        return true;
+      }
       if (message.type === "PROBE_EDITABLE") {
         const el = bestEditableInFrame();
         sendResponse({
