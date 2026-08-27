@@ -24,7 +24,7 @@ ToneDesk is a Manifest V3 extension. Use Google Chrome, or another Chromium brow
 
 ### Step 2 — Download the extension folder
 
-1. Open <https://github.com/KingHenryZ/ToneDesk>
+1. Open <https://github.com/PineappleAGI/ToneDesk>
 2. Click the green **Code** button → **Download ZIP** (or clone with git)
 3. Unzip it somewhere you'll remember (e.g. your Desktop or `~/Documents/`)
 
