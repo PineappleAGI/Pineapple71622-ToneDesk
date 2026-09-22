@@ -6,6 +6,8 @@ A **Chrome extension** for people who write a lot of business messages. Highligh
 
 **No account. No API key. No internet required.** Everything runs on your own machine. Recent rewrites, favorites, and filled-in names stay on this device. The text you highlight is session-only and clears when Chrome closes.
 
+https://github.com/user-attachments/assets/fc9de1b1-9e42-4172-b4e3-609a9665d8d6
+
 ---
 
 ## Get It From GitHub
