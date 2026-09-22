@@ -3,7 +3,8 @@
     { "id": "reply", "label": "Reply to an email / message" },
     { "id": "new_email", "label": "Starting a new email" },
     { "id": "linkedin", "label": "LinkedIn post or comment" },
-    { "id": "slack", "label": "Quick Slack / WhatsApp message" }
+    { "id": "slack", "label": "Quick Slack / WhatsApp message" },
+    { "id": "job_search", "label": "Job Search" }
   ],
   "q2": {
     "reply": [
@@ -33,6 +34,16 @@
       { "id": "request", "label": "Making a polite request" },
       { "id": "followup", "label": "Following up on something" },
       { "id": "problem", "label": "Flagging a problem" }
+    ],
+    "job_search": [
+      { "id": "cold_recruiter", "label": "Cold outreach to a recruiter or alum" },
+      { "id": "info_interview", "label": "Requesting an informational interview" },
+      { "id": "thank_you", "label": "Thank-you note after an interview" },
+      { "id": "recruiter_quiet", "label": "Following up when a recruiter goes quiet" },
+      { "id": "referral", "label": "Asking for a referral" },
+      { "id": "negotiate_offer", "label": "Responding to or negotiating an offer" },
+      { "id": "decline_offer", "label": "Declining an offer gracefully" },
+      { "id": "networking_followup", "label": "Following up after a networking event or coffee chat" }
     ]
   },
   "q3": [
@@ -216,6 +227,72 @@
         "boss": "Heads-up: [issue]. Impact so far: [impact]. Proposed next step / ask: [ask]. Wanted you aware.",
         "client": "Wanted to flag something promptly: [issue]. Current impact: [impact]. We're looking at [ask] and will keep you posted.",
         "junior": "FYI — [issue] came up. Impact: [impact]. Can you help with [ask]? I'm around if you get stuck."
+      }
+    },
+    "job_search:cold_recruiter": {
+      "slots": ["their name", "connection", "your name", "role or year", "field", "role"],
+      "base": "Hello [their name],\n\nI found your work through [connection]. I'm [your name], a [role or year] focused on [field].\n\nWould you be open to a short note or 15-minute call about the [role] path? I'm glad to work around your schedule.\n\nThank you for considering,\n[your name]",
+      "audience": {
+        "recruiter": "Hello [their name],\n\nI'm [your name], a [role or year] studying [field]. I came across the [role] opening through [connection].\n\nMay I send a resume, or is there a better way to be considered? I can keep it to a few lines.\n\nThank you,\n[your name]",
+        "professor": "Dear Professor [their name],\n\nI'm [your name], and I'm applying for roles in [field]. I thought of you because of [connection].\n\nWould you be willing to point me toward one person I should talk to about [role]? A name or a short intro is plenty.\n\nThank you,\n[your name]",
+        "peer": "Hi [their name],\n\nI'm [your name] — we overlap through [connection]. I'm looking at [role] roles in [field].\n\nIf you're open to it, could I ask how you approached that search? Happy to keep it to a short call or a reply here.\n\nThanks,\n[your name]"
+      }
+    },
+    "job_search:info_interview": {
+      "slots": ["their name", "connection", "your name", "field", "topic"],
+      "base": "Hello [their name],\n\n[connection] suggested I reach out. I'm [your name], and I'm learning the [field] path.\n\nWould you have 15 minutes in the next few weeks to talk about [topic]? I'll come with two specific questions and keep to the time.\n\nThank you,\n[your name]",
+      "audience": {
+        "recruiter": "Hello [their name],\n\nI'm [your name]. I'm exploring [field] and hoped to learn how your team thinks about [topic] — not to ask about an open role.\n\nWould a 15-minute call in the next few weeks work? I'm glad to send questions ahead.\n\nThank you,\n[your name]",
+        "professor": "Dear Professor [their name],\n\nI'm [your name]. I'm preparing for conversations in [field], and your work on [topic] is the reason I wrote.\n\nCould I ask for 15 minutes, or for one reading you'd recommend before I talk to people in the field?\n\nThank you,\n[your name]"
+      }
+    },
+    "job_search:thank_you": {
+      "slots": ["their name", "topic", "specific detail", "your name"],
+      "base": "Hello [their name],\n\nThank you for speaking with me about [topic]. I especially appreciated your point about [specific detail].\n\nThe conversation made the work clearer. Please let me know if I can send anything else.\n\nThank you again,\n[your name]",
+      "audience": {
+        "recruiter": "Hello [their name],\n\nThank you for the time today to discuss [topic]. Your comment about [specific detail] is what I'm still thinking about.\n\nI'm glad to send anything else that would help. Thank you again,\n[your name]",
+        "professor": "Dear Professor [their name],\n\nThank you for meeting with me about [topic]. I left with a clearer sense of [specific detail].\n\nI'll follow the next step we discussed and can update you briefly if that's useful.\n\nThank you,\n[your name]"
+      }
+    },
+    "job_search:recruiter_quiet": {
+      "slots": ["their name", "role", "date", "your name"],
+      "base": "Hello [their name],\n\nI'm following up on the [role] conversation from [date]. I know inboxes get crowded, so a one-line update is plenty.\n\nI'm still interested. If the timing has changed, I'm glad to wait or close the loop.\n\nThank you,\n[your name]",
+      "audience": {
+        "recruiter": "Hello [their name],\n\nChecking in on the [role] process we discussed on [date]. I'm still interested and happy to send anything missing.\n\nIf the role is on hold or filled, a short note is enough so I can plan. Thank you,\n[your name]",
+        "peer": "Hi [their name],\n\nWanted to bump my note about [role] from [date]. If now is a bad time, no need to reply at length — even a 'not yet' helps.\n\nThanks,\n[your name]"
+      }
+    },
+    "job_search:referral": {
+      "slots": ["their name", "role", "company", "connection", "your name"],
+      "base": "Hello [their name],\n\nI'm applying for [role] at [company]. We know each other through [connection], so I wanted to ask you directly rather than send a form letter.\n\nIf you know the team and feel comfortable, would you refer me? I can send a short blurb and a resume so it's easy to forward. If not, I completely understand.\n\nThank you,\n[your name]",
+      "audience": {
+        "peer": "Hi [their name],\n\nI'm applying for [role] at [company]. Because of [connection], I thought you might know whether a referral is appropriate.\n\nIf you're comfortable, I can send three lines and a resume. If you'd rather not, that's fine — thank you either way.\n\n[your name]",
+        "recruiter": "Hello [their name],\n\nI'm [your name], and I'm interested in [role] at [company]. [connection] is how I found the opening.\n\nIs a referral useful here, or should I apply through the posting only? I'm glad to follow whichever path you prefer.\n\nThank you,\n[your name]"
+      }
+    },
+    "job_search:negotiate_offer": {
+      "slots": ["their name", "role", "ask", "reason", "your name"],
+      "base": "Hello [their name],\n\nThank you for the [role] offer. I'm excited about the team and wanted to ask about [ask] before I accept.\n\n[reason]. If that piece is fixed, I'm glad to talk about what else could move. I can decide once I hear back.\n\nThank you,\n[your name]",
+      "audience": {
+        "recruiter": "Hello [their name],\n\nThank you again for the [role] offer. I'd like to accept and had one question about [ask].\n\n[reason]. Would you be open to that, or to walking me through the range? I don't want to drag the process out.\n\nThank you,\n[your name]",
+        "manager": "Hello [their name],\n\nThank you for the [role] offer. I'd like to join the team. Before I confirm, could we look at [ask]?\n\n[reason]. Happy to discuss what would make that workable.\n\nThank you,\n[your name]"
+      }
+    },
+    "job_search:decline_offer": {
+      "slots": ["their name", "role", "your name"],
+      "base": "Hello [their name],\n\nThank you for the [role] offer and for the time your team spent with me. I've decided to take a different path, so I'll decline.\n\nI appreciated learning about the work, and I hope we can stay in touch.\n\nAll the best,\n[your name]",
+      "audience": {
+        "recruiter": "Hello [their name],\n\nThank you for offering me the [role]. After thinking it through, I'm going to decline.\n\nI'm grateful for how clearly you ran the process. I hope our paths cross again.\n\nThank you,\n[your name]",
+        "manager": "Hello [their name],\n\nThank you for the [role] offer. I've decided to decline so I don't hold the search open.\n\nI learned a lot from our conversations and wish the team well.\n\nThank you,\n[your name]"
+      }
+    },
+    "job_search:networking_followup": {
+      "slots": ["their name", "event", "topic", "next step", "your name"],
+      "base": "Hello [their name],\n\nIt was good to meet you at [event]. I kept thinking about what you said on [topic].\n\n[next step]. If a reply by email is easier than a call, that works too.\n\nThank you,\n[your name]",
+      "audience": {
+        "recruiter": "Hello [their name],\n\nThank you for the conversation at [event] about [topic]. I wanted to follow up while it was still fresh.\n\n[next step]. I'm glad to make that easy on your side.\n\nThank you,\n[your name]",
+        "peer": "Hi [their name],\n\nGood to meet you at [event]. Your point about [topic] stuck with me.\n\n[next step]. No rush if this week is packed.\n\nThanks,\n[your name]",
+        "professor": "Dear Professor [their name],\n\nThank you for the conversation at [event]. I wanted to follow up on [topic] while the details are still clear.\n\n[next step].\n\nThank you,\n[your name]"
       }
     }
   },

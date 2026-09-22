@@ -1,5 +1,90 @@
 /* ToneDesk — page launcher buttons. UI opens via side panel / window (not iframe). */
 
+/* Remembers the blinking caret so Insert can paste there after the panel takes focus. */
+(() => {
+  if (window.__tonedeskCaretMark === 2) return;
+  window.__tonedeskCaretMark = 2;
+
+  const SKIP = new Set(["password", "hidden", "file", "checkbox", "radio", "button", "submit", "reset", "image", "range", "color"]);
+
+  function fieldFrom(node) {
+    let el = node?.nodeType === 1 ? node : node?.parentElement;
+    while (el && el !== document.documentElement) {
+      if (el.id === "tonedesk-fab") return null;
+      const type = (el.type || "").toLowerCase();
+      const name = `${el.name || ""} ${el.id || ""}`.toLowerCase();
+      if (SKIP.has(type) || /pass(word)?|secret|token|otp|cvv|ssn/.test(name)) return null;
+      const ce = el.getAttribute?.("contenteditable");
+      if (el.isContentEditable || ce === "" || ce === "true" || ce === "plaintext-only") return el;
+      if (el.tagName === "TEXTAREA" && !el.disabled && !el.readOnly) return el;
+      if (el.tagName === "INPUT" && !el.disabled && !el.readOnly && !SKIP.has(type || "text")) return el;
+      el = el.parentElement || el.getRootNode?.()?.host;
+    }
+    return null;
+  }
+
+  function caretOffset(field) {
+    const sel = window.getSelection();
+    if (!sel?.rangeCount || !field.contains(sel.anchorNode)) return null;
+    try {
+      const range = sel.getRangeAt(0);
+      const pre = range.cloneRange();
+      pre.selectNodeContents(field);
+      pre.setEnd(range.startContainer, range.startOffset);
+      return pre.toString().length;
+    } catch {
+      return null;
+    }
+  }
+
+  function mark(field) {
+    if (!field || !field.setAttribute) return;
+    const root = field.getRootNode?.() || document;
+    root.querySelectorAll?.("[data-tonedesk-caret]").forEach((el) => {
+      if (el !== field) el.removeAttribute("data-tonedesk-caret");
+    });
+    field.setAttribute("data-tonedesk-caret", "1");
+    field.setAttribute("data-tonedesk-at", String(Date.now()));
+    if (typeof field.selectionStart === "number") {
+      field.setAttribute("data-tonedesk-start", String(field.selectionStart));
+      field.setAttribute("data-tonedesk-end", String(field.selectionEnd ?? field.selectionStart));
+    } else {
+      const offset = caretOffset(field);
+      if (offset != null) field.setAttribute("data-tonedesk-offset", String(offset));
+    }
+  }
+
+  function captureFrom(event) {
+    const path = event?.composedPath?.() || [];
+    for (const node of path) {
+      const field = fieldFrom(node);
+      if (field) {
+        mark(field);
+        return;
+      }
+    }
+    const direct = fieldFrom(event?.target) || fieldFrom(document.activeElement);
+    if (direct) mark(direct);
+  }
+
+  document.addEventListener("focusin", captureFrom, true);
+  document.addEventListener("focusout", captureFrom, true);
+  document.addEventListener("pointerdown", captureFrom, true);
+  document.addEventListener("pointerup", captureFrom, true);
+  document.addEventListener("keyup", captureFrom, true);
+  document.addEventListener(
+    "selectionchange",
+    () => {
+      if (!document.hasFocus()) return;
+      const sel = window.getSelection();
+      const field = fieldFrom(sel?.anchorNode) || fieldFrom(document.activeElement);
+      if (field) mark(field);
+    },
+    true
+  );
+  captureFrom({ target: document.activeElement });
+})();
+
 (() => {
   if (window.__tonedeskLoaded) return;
   window.__tonedeskLoaded = true;
@@ -12,6 +97,8 @@
   let blurTimer = null;
   /** Kept when focus moves to the extension UI (selection often clears on panel open). */
   let lastSelection = "";
+  let lastPointer = null;
+  let caretBookmark = null;
 
   init();
 
@@ -19,10 +106,21 @@
     createFab();
     bindFocusListeners();
     bindSelectionCache();
+    bindPointerTracking();
 
     chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       if (message.type === "INSERT_INTO_FIELD") {
         sendResponse({ ok: insertText(message.text), score: scoreEditable(lastEditable || activeField) });
+        return true;
+      }
+      if (message.type === "GET_INSERT_TARGET") {
+        const field = targetForInsert();
+        sendResponse({
+          ok: !!field,
+          at: lastPointer?.at || caretBookmark?.at || 0,
+          x: lastPointer?.x,
+          y: lastPointer?.y
+        });
         return true;
       }
       if (message.type === "GET_SELECTION") {
@@ -120,14 +218,89 @@
   }
 
   function onFocusIn(event) {
-    const el = event.target;
-    if (!isEditable(el)) return;
-    if (el.closest("#tonedesk-fab")) return;
+    const el = fieldFromEvent(event);
+    if (!el) return;
+    if (el.closest?.("#tonedesk-fab")) return;
     clearTimeout(blurTimer);
     activeField = el;
     lastEditable = el;
     showFabNear(el);
+    snapshotCaret(el);
     rememberFocus();
+  }
+
+  function bindPointerTracking() {
+    const onPointer = (event) => {
+      if (event.target?.closest?.("#tonedesk-fab")) return;
+      lastPointer = { x: event.clientX, y: event.clientY, at: Date.now() };
+      const field = editableFromPoint(event.clientX, event.clientY) || fieldFromEvent(event);
+      if (!field) return;
+      activeField = field;
+      lastEditable = field;
+      snapshotCaret(field);
+      reportPointer();
+    };
+    document.addEventListener("pointerdown", onPointer, true);
+    document.addEventListener("pointerup", onPointer, true);
+    document.addEventListener("keyup", () => snapshotCaret(lastEditable), true);
+    document.addEventListener(
+      "selectionchange",
+      () => {
+        if (document.hasFocus()) snapshotCaret();
+      },
+      true
+    );
+  }
+
+  function fieldFromEvent(event) {
+    const path = event.composedPath?.() || [];
+    for (const node of path) {
+      const field = resolveField(node);
+      if (field) return field;
+    }
+    return resolveField(event.target);
+  }
+
+  function snapshotCaret(preferred) {
+    if (!document.hasFocus() && !preferred) return;
+    let field = preferred && document.contains(preferred) ? preferred : null;
+    if (!field) field = resolveField(document.activeElement);
+    const sel = window.getSelection();
+    if (!field && sel?.anchorNode) field = editableFromNode(sel.anchorNode);
+    if (!field) return;
+    lastEditable = field;
+    const at = Date.now();
+    if (typeof field.selectionStart === "number") {
+      caretBookmark = {
+        kind: "input",
+        field,
+        start: field.selectionStart,
+        end: field.selectionEnd,
+        at
+      };
+      return;
+    }
+    if (sel && sel.rangeCount && field.contains(sel.anchorNode)) {
+      try {
+        caretBookmark = { kind: "range", field, range: sel.getRangeAt(0).cloneRange(), at };
+      } catch {
+        /* ignore */
+      }
+    }
+  }
+
+  function reportPointer() {
+    if (!lastPointer) return;
+    try {
+      chrome.runtime.sendMessage(
+        { type: "CACHE_POINTER", x: lastPointer.x, y: lastPointer.y, at: lastPointer.at },
+        () => {
+          void chrome.runtime.lastError;
+        }
+      );
+    } catch {
+      /* ignore */
+    }
   }
 
   function rememberFocus() {
@@ -170,16 +343,111 @@
   }
 
   function isEditable(el) {
-    if (!el || el.nodeType !== 1) return false;
-    if (isSensitiveField(el)) return false;
-    if (el.isContentEditable) return true;
-    const tag = el.tagName;
-    if (tag === "TEXTAREA") return !el.disabled && !el.readOnly;
-    if (tag === "INPUT") {
+    return !!resolveField(el);
+  }
+
+  function resolveField(el) {
+    if (!el || el.nodeType !== 1 || isSensitiveField(el)) return null;
+    const ceAttr = el.getAttribute?.("contenteditable");
+    const ce = (ceAttr || "").toLowerCase();
+    if (el.isContentEditable || ce === "true" || ce === "plaintext-only" || ceAttr === "") return el;
+    if (el.tagName === "TEXTAREA") return !el.disabled && !el.readOnly ? el : null;
+    if (el.tagName === "INPUT") {
       const type = (el.type || "text").toLowerCase();
-      return ["text", "search", "email", "url", ""].includes(type) && !el.disabled && !el.readOnly;
+      if (["password", "hidden", "file", "checkbox", "radio", "button", "submit", "reset", "image", "range", "color"].includes(type)) {
+        return null;
+      }
+      return !el.disabled && !el.readOnly ? el : null;
     }
-    return false;
+    if (el.getAttribute?.("role") === "textbox") {
+      const inner = el.querySelector?.(
+        '[contenteditable="true"], [contenteditable="plaintext-only"], textarea, input[type="text"], input:not([type])'
+      );
+      if (inner && inner !== el) return resolveField(inner);
+    }
+    return null;
+  }
+
+  function editableFromNode(node) {
+    let el = node?.nodeType === 1 ? node : node?.parentElement;
+    while (el && el !== document.documentElement) {
+      const field = resolveField(el);
+      if (field) return field;
+      el = el.parentElement;
+    }
+    return null;
+  }
+
+  function editableFromPoint(x, y) {
+    let el = document.elementFromPoint(x, y);
+    for (let depth = 0; depth < 8 && el; depth++) {
+      const field = editableFromNode(el);
+      if (field) return field;
+      const root = el.shadowRoot;
+      if (!root || typeof root.elementFromPoint !== "function") break;
+      const next = root.elementFromPoint(x, y);
+      if (!next || next === el) break;
+      el = next;
+    }
+    const pos = document.caretPositionFromPoint?.(x, y);
+    if (pos?.offsetNode) {
+      const field = editableFromNode(pos.offsetNode);
+      if (field) return field;
+    }
+    const range = document.caretRangeFromPoint?.(x, y);
+    if (range?.startContainer) return editableFromNode(range.startContainer);
+    return null;
+  }
+
+  function targetForInsert() {
+    if (lastPointer) {
+      const atPoint = editableFromPoint(lastPointer.x, lastPointer.y);
+      if (atPoint) return atPoint;
+    }
+    if (caretBookmark?.field && document.contains(caretBookmark.field)) return caretBookmark.field;
+    return bestEditableInFrame();
+  }
+
+  function placeCaret(el) {
+    if (typeof el.selectionStart === "number" && caretBookmark?.kind === "input" && caretBookmark.field === el) {
+      try {
+        el.setSelectionRange(caretBookmark.start, caretBookmark.end);
+      } catch {
+        /* ignore */
+      }
+      return;
+    }
+    const sel = window.getSelection();
+    if (!sel) return;
+    if (
+      caretBookmark?.kind === "range" &&
+      caretBookmark.field === el &&
+      caretBookmark.range?.startContainer &&
+      el.contains(caretBookmark.range.startContainer)
+    ) {
+      sel.removeAllRanges();
+      sel.addRange(caretBookmark.range);
+      return;
+    }
+    if (!lastPointer) return;
+    const pos = document.caretPositionFromPoint?.(lastPointer.x, lastPointer.y);
+    if (pos?.offsetNode && (el.contains(pos.offsetNode) || el === pos.offsetNode)) {
+      try {
+        const range = document.createRange();
+        range.setStart(pos.offsetNode, Math.min(pos.offset, pos.offsetNode.textContent?.length || pos.offset));
+        range.collapse(true);
+        sel.removeAllRanges();
+        sel.addRange(range);
+        return;
+      } catch {
+        /* ignore */
+      }
+    }
+    const legacy = document.caretRangeFromPoint?.(lastPointer.x, lastPointer.y);
+    if (legacy?.startContainer && el.contains(legacy.startContainer)) {
+      sel.removeAllRanges();
+      sel.addRange(legacy);
+    }
   }
 
   function showFabNear(el) {
@@ -221,6 +489,7 @@
     if (h.includes("linkedin.com")) return "linkedin";
     if (h.includes("slack.com")) return "slack";
     if (h.includes("whatsapp.com")) return "whatsapp";
+    if (h.includes("teams.microsoft.com")) return "teams";
     return "unknown";
   }
 
@@ -294,10 +563,13 @@
   function insertText(text) {
     const value = String(text || "");
     if (!value) return false;
-    const el = bestEditableInFrame();
+    const el = targetForInsert();
     if (!el) return false;
     el.focus();
-    if (el.isContentEditable) return insertIntoContentEditable(el, value);
+    placeCaret(el);
+    if (el.isContentEditable || el.getAttribute("contenteditable") != null) {
+      return insertIntoContentEditable(el, value);
+    }
     return insertIntoInput(el, value);
   }
 

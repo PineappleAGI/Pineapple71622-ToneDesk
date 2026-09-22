@@ -9,6 +9,64 @@
         "Thank you for reaching out.",
         "I wanted to follow up on our conversation.",
         "I hope all is well on your end."
+      ],
+      "icon": "message"
+    },
+    {
+      "id": "job_search",
+      "label": "Job Search & Networking",
+      "icon": "briefcase",
+      "sections": [
+        {
+          "id": "cold",
+          "label": "Cold outreach / introducing yourself",
+          "phrases": [
+            "I'm [your name], a [year or role] focused on [field].",
+            "I came across your work on [topic] through [connection] and wanted to introduce myself briefly.",
+            "Would you have 15 minutes in the next few weeks to talk about [topic]?",
+            "I'll keep it short and work around your schedule, including a reply by email if a call is hard."
+          ]
+        },
+        {
+          "id": "followup",
+          "label": "Following up without being annoying",
+          "phrases": [
+            "I'm circling back on my note from [date]. A one-line update is plenty.",
+            "If now isn't a good time, I'm glad to reconnect later.",
+            "Wanted to keep this on your radar without sending another long email.",
+            "Happy to make this easy — even a 'not yet' helps me plan."
+          ]
+        },
+        {
+          "id": "rejection",
+          "label": "Handling rejection gracefully",
+          "phrases": [
+            "Thank you for letting me know, and for the time you already spent on this.",
+            "If you're open to it, I'd value one piece of feedback on my application.",
+            "I'd like to stay in touch as I keep learning in [field].",
+            "Wishing you and the team well. I hope our paths cross again."
+          ]
+        },
+        {
+          "id": "negotiating",
+          "label": "Negotiating an offer, deadline, or workload",
+          "phrases": [
+            "Thank you for the offer. Before I accept, I wanted to ask about [ask].",
+            "I have a decision deadline on [date] and want to give you a clear answer.",
+            "If that number is fixed, could we look at [start date or scope] instead?",
+            "I'm excited about the role and glad to talk through what would make [ask] work."
+          ]
+        },
+        {
+          "id": "thanks",
+          "label": "Thank-you notes after interviews or coffee chats",
+          "phrases": [
+            "Thank you for taking the time to speak with me about [topic].",
+            "I especially appreciated your point about [specific detail].",
+            "The conversation made me more interested in [team or role].",
+            "Please let me know if I can send anything else as you decide."
+          ]
+        }
       ]
     },
     {
@@ -20,7 +78,8 @@
         "Thank you for your patience on this matter.",
         "I understand your concern and want to address it properly.",
         "Noted — and thank you for the context."
-      ]
+      ],
+      "icon": "check"
     },
     {
       "id": "soft_disagreements",
@@ -31,7 +90,8 @@
         "I want to make sure we're aligned before moving forward.",
         "I'd love to explore this further — could we discuss the rationale?",
         "I appreciate the suggestion. I wonder if we could also look at…"
-      ]
+      ],
+      "icon": "scale"
     },
     {
       "id": "buying_time",
@@ -41,7 +101,8 @@
         "I want to make sure I give you a thorough answer on this.",
         "I'll need a moment to review and will respond by [date].",
         "Could I have until [day] to come back to you with a more complete response?"
-      ]
+      ],
+      "icon": "clock"
     },
     {
       "id": "bad_news",
@@ -51,7 +112,8 @@
         "Unfortunately, we're not in a position to proceed with this at the moment.",
         "This has been a difficult decision, and we want to be as transparent as possible.",
         "While this isn't the outcome we'd hoped for, we believe it's the right path forward."
-      ]
+      ],
+      "icon": "alert"
     },
     {
       "id": "following_up",
@@ -61,7 +123,8 @@
         "Just following up to see if you had a chance to review this.",
         "I know you're busy — please let me know if you need anything from my end.",
         "No rush, but wanted to keep this on your radar."
-      ]
+      ],
+      "icon": "reply"
     },
     {
       "id": "closers",
@@ -72,7 +135,8 @@
         "Happy to discuss this further at your convenience.",
         "Thanks again for your time and consideration.",
         "I appreciate your continued support on this."
-      ]
+      ],
+      "icon": "flag"
     },
     {
       "id": "gratitude",
@@ -82,7 +146,8 @@
         "Thank you for going above and beyond.",
         "Your input has been invaluable.",
         "I wanted to take a moment to recognize the great work on…"
-      ]
+      ],
+      "icon": "heart"
     },
     {
       "id": "requests",
@@ -92,7 +157,8 @@
         "When you get a chance, could you…?",
         "I'd be grateful if you could…",
         "At your earliest convenience, could you…?"
-      ]
+      ],
+      "icon": "hand"
     },
     {
       "id": "cya",
@@ -103,7 +169,8 @@
         "I want to make sure we're aligned — here's my understanding of the next steps:",
         "Please let me know if I've misunderstood anything.",
         "I'll proceed with this plan unless I hear otherwise by [date]."
-      ]
+      ],
+      "icon": "shield"
     }
   ]
 }

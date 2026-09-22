@@ -1,18 +1,15 @@
 {
   "manifest_version": 3,
   "name": "ToneDesk",
-  "version": "2.3.0",
-  "description": "Rewrite and draft tactful business messages where you already write.",
+  "version": "2.4.0",
+  "description": "Match tone, formality, and structure to the person you are writing to.",
   "permissions": [
     "scripting",
     "storage",
     "sidePanel"
   ],
   "host_permissions": [
-    "https://mail.google.com/*",
-    "https://*.linkedin.com/*",
-    "https://web.whatsapp.com/*",
-    "https://app.slack.com/*"
+    "<all_urls>"
   ],
   "background": {
     "service_worker": "background/service-worker.js",
@@ -39,10 +36,7 @@
   "content_scripts": [
     {
       "matches": [
-        "https://mail.google.com/*",
-        "https://*.linkedin.com/*",
-        "https://web.whatsapp.com/*",
-        "https://app.slack.com/*"
+        "<all_urls>"
       ],
       "js": ["content/content.js"],
       "css": ["content/content.css"],
@@ -57,8 +51,18 @@
         "https://mail.google.com/*",
         "https://*.linkedin.com/*",
         "https://web.whatsapp.com/*",
-        "https://app.slack.com/*"
+        "https://app.slack.com/*",
+        "https://teams.microsoft.com/*"
       ]
     }
-  ]
+  ],
+  "commands": {
+    "rewrite-selection": {
+      "suggested_key": {
+        "default": "Alt+Shift+R",
+        "mac": "Alt+Shift+R"
+      },
+      "description": "Rewrite the selected text in ToneDesk"
+    }
+  }
 }

@@ -80,19 +80,39 @@ export function fuzzySearch(query, corpus, limit = 5) {
   const scored = corpus.map((item) => {
     const phrase = item.phrase;
     const pNorm = normalize(phrase);
-    const pTokens = tokens(pNorm);
+    const hay = normalize(
+      [phrase, item.categoryLabel, ...(item.keywords || [])].filter(Boolean).join(" ")
+    );
+    const pTokens = tokens(hay);
     let score = 0;
 
-    if (pNorm === normalized) score += 100;
-    if (pNorm.includes(normalized)) score += 50;
+    if (pNorm === normalized || hay === normalized) score += 100;
+    if (hay.includes(normalized)) score += 50;
     if (normalized.includes(pNorm) && pNorm.length > 8) score += 30;
 
     for (const qt of qTokens) {
       if (qt.length < 2) continue;
-      if (pNorm.includes(qt)) score += 12;
+      // Two-letter tokens must be whole words so "up" does not hit "update".
+      if (qt.length <= 2) {
+        if (pTokens.includes(qt)) score += 12;
+        continue;
+      }
+      if (hay.includes(qt)) score += 12;
       else {
-        const best = Math.min(...pTokens.map((pt) => editDistance(qt, pt)));
-        if (best <= 1 && qt.length > 3) score += 6;
+        let best = Infinity;
+        let prefix = false;
+        for (const pt of pTokens) {
+          best = Math.min(best, editDistance(qt, pt));
+          if (
+            qt.length > 3 &&
+            pt.length > 3 &&
+            (pt.startsWith(qt.slice(0, 4)) || qt.startsWith(pt.slice(0, 4)))
+          ) {
+            prefix = true;
+          }
+        }
+        if (prefix) score += 8;
+        else if (best <= 1 && qt.length > 3) score += 6;
         else if (best <= 2 && qt.length > 4) score += 3;
       }
     }

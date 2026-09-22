@@ -101,6 +101,16 @@ export function flattenPhrases(phrasesData) {
         categoryLabel: cat.label
       });
     }
+    for (const section of cat.sections || []) {
+      for (const phrase of section.phrases || []) {
+        out.push({
+          phrase,
+          categoryId: cat.id,
+          categoryLabel: `${cat.label} · ${section.label}`,
+          keywords: [section.label, cat.label]
+        });
+      }
+    }
   }
   return out;
 }
@@ -116,10 +126,12 @@ export function transformFreeText(text, variantId, _templates) {
 
   if (!variantId || variantId === "balanced") return raw;
 
-  if (variantId === "shorter") return rewriteShorter(raw);
+  if (variantId === "shorter" || variantId === "concise") return rewriteShorter(raw);
   if (variantId === "formal") return rewriteFormal(raw);
-  if (variantId === "warmer") return rewriteWarmer(raw);
-  if (variantId === "soften") return rewriteSofter(raw);
+  if (variantId === "warmer" || variantId === "warm") return rewriteWarmer(raw);
+  if (variantId === "soften" || variantId === "diplomatic") return rewriteSofter(raw);
+  if (variantId === "direct") return rewriteDirect(raw);
+  if (variantId === "confident") return rewriteConfident(raw);
 
   return raw;
 }
@@ -275,6 +287,48 @@ function rewriteShorter(text) {
     out = out.replace(/^[a-z]/, (c) => c.toUpperCase()) || text;
   }
   return out;
+}
+
+function rewriteDirect(text) {
+  let out = text
+    .replace(/\bi think maybe\b/gi, "")
+    .replace(/\bi was wondering if you could\b/gi, "Could you")
+    .replace(/\bi was wondering if\b/gi, "")
+    .replace(/\bi wanted to reach out to\b/gi, "I'm writing to")
+    .replace(/\bi just wanted to\b/gi, "I want to")
+    .replace(/\bi think\b/gi, "")
+    .replace(/\bi feel like\b/gi, "")
+    .replace(/\bmaybe\b/gi, "")
+    .replace(/\bjust\b/gi, "")
+    .replace(/\bsort of\b/gi, "")
+    .replace(/\bkind of\b/gi, "");
+  out = tidySpaces(out);
+  out = out.replace(/^(hey|hi),?\s+/i, "");
+  out = out.replace(/^[a-z]/, (c) => c.toUpperCase());
+
+  const sentences = out.split(/(?<=[.!?])\s+/).filter(Boolean);
+  if (sentences.length > 1 && /\?\s*$/.test(sentences[sentences.length - 1]) && !/\?/.test(sentences[0])) {
+    const ask = sentences.pop();
+    out = [ask, ...sentences].join(" ");
+  }
+  return tidySpaces(out) || text.trim();
+}
+
+function rewriteConfident(text) {
+  let out = text
+    .replace(/\bsorry to bother you,? ?/gi, "")
+    .replace(/\bif it's not too much trouble,? ?/gi, "")
+    .replace(/\bi was hoping\b/gi, "I'd like")
+    .replace(/\bi hope it's okay if\b/gi, "I'd like to")
+    .replace(/\bi think i can\b/gi, "I can")
+    .replace(/\bi'm not sure,? but\b/gi, "")
+    .replace(/\bi just wanted to\b/gi, "I want to")
+    .replace(/\bwould it be possible to\b/gi, "Please")
+    .replace(/\bi think\b/gi, "");
+  out = tidySpaces(out);
+  out = out.replace(/^[a-z]/, (c) => c.toUpperCase());
+  if (!/[.!?]$/.test(out)) out = `${out}.`;
+  return out || text.trim();
 }
 
 function tidySpaces(s) {
