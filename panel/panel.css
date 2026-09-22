@@ -8,6 +8,8 @@
   --teal: #2a7a8c;
   --slot: #fff3cd;
   --slot-border: #e8c96a;
+  --gold: #c4a35a;
+  --gold-soft: #f3ead2;
   --border: #e2ddd4;
   --ok: #2d6a4f;
   --danger: #9b2226;
@@ -48,7 +50,7 @@ body {
 
 .header {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
   padding: 14px 16px 10px;
@@ -57,8 +59,28 @@ body {
 
 .header-actions {
   display: flex;
-  align-items: center;
-  gap: 2px;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.pineapple-stamp {
+  flex: 0 0 auto;
+  display: block;
+  margin-top: 1px;
+  padding: 0.35rem 0.55rem;
+  border: 2px solid var(--gold);
+  border-radius: 6px;
+  box-shadow: inset 0 0 0 1px var(--gold-soft);
+  transform: rotate(-1.5deg);
+  text-align: center;
+  color: var(--gold);
+  font-size: 0.58rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  line-height: 1.45;
+  white-space: nowrap;
 }
 
 .brand {
