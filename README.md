@@ -2,9 +2,9 @@
 
 A **Chrome extension** for people who write a lot of business messages. Highlight something you already wrote and ToneDesk makes it softer, more formal, shorter, or warmer — or answer three quick questions and get a full draft with fill-in blanks.
 
-> Open Gmail, LinkedIn, Slack, or WhatsApp Web. ToneDesk helps you say the hard thing professionally — follow-ups, soft pushback, apologies, closers — without sounding cold or abrupt.
+> Use it in any page’s compose box. ToneDesk helps you say the hard thing professionally — follow-ups, soft pushback, apologies, closers — without sounding cold or abrupt.
 
-**No account. No API key. No internet required.** Everything runs on your own machine.
+**No account. No API key. No internet required.** Everything runs on your own machine. Recent rewrites, favorites, and filled-in names stay on this device. The text you highlight is session-only and clears when Chrome closes.
 
 <img width="350" height="689" alt="Screenshot 2026-08-10 at 16 39 50" src="https://github.com/user-attachments/assets/acfdad05-4aed-4850-96f1-8112359a7e7b" />
 <img width="355" height="683" alt="Screenshot 2026-08-10 at 16 37 26" src="https://github.com/user-attachments/assets/98135c27-d6dc-47bf-b69c-20c930ae274d" />
@@ -24,7 +24,7 @@ ToneDesk is a Manifest V3 extension. Use Google Chrome, or another Chromium brow
 
 ### Step 2 — Download the extension folder
 
-1. Open <https://github.com/PineappleAGI/ToneDesk>
+1. Open <https://github.com/PineappleAGI/Pineapple71622-ToneDesk>
 2. Click the green **Code** button → **Download ZIP** (or clone with git)
 3. Unzip it somewhere you'll remember (e.g. your Desktop or `~/Documents/`)
 
@@ -47,7 +47,7 @@ ToneDesk appears in your extensions list with a speech-bubble icon.
 
 ### First: open the panel
 
-1. Open **Gmail**, **LinkedIn**, **Slack (web)**, or **WhatsApp Web**
+1. Open any page with a text box — Gmail, LinkedIn, Slack, WhatsApp Web, and Teams work especially well
 2. Click the **ToneDesk** icon in the Chrome toolbar — the **side panel** opens
 3. Prefer a floating window? Tap **Pop out** in the panel header
 
@@ -96,7 +96,16 @@ The bar at the top filters the tab you're on:
 | **Phrases** | Browsable bank of professional openers, acknowledgments, pushback, and closers |
 | **Search** | Filters the active tab — rewrite tones, write situations, or phrases |
 | **Copy / Insert** | Copy to clipboard, or drop the text into the compose box you were using |
-| **Optional AI polish** | If Chrome's built-in on-device AI is available, drafts get an extra polish pass |
+| **Optional AI polish** | If Chrome's built-in on-device AI is available, drafts get an extra polish pass. Text stays on this device — it is not sent to a server. |
+
+### What's stored on this device
+
+- **Recent rewrites** — the last 10 source/result pairs, so you can reopen them
+- **Favorites and slot defaults** — starred phrases, and names or details you typed into `[slots]`
+- **Tone and audience** — remembered per site
+- **Live selection** — the text you highlight right now is session-only and goes away when Chrome closes
+
+Nothing is uploaded. There is no account and no remote backend.
 
 ---
 
