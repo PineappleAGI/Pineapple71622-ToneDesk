@@ -1,6 +1,7 @@
 /**
  * chrome.storage.local helpers for ToneDesk preferences.
- * Only settings live here — message text is never written to disk.
+ * Tone and audience are stored per site. The last 10 rewrites are kept
+ * so the panel can show recent history. Live selections stay in session storage.
  */
 
 const DEFAULTS = {
@@ -8,7 +9,10 @@ const DEFAULTS = {
   preferredTone: "balanced",
   favoritePhrases: [],
   hasSeenTooltip: false,
-  slotDefaults: {}
+  slotDefaults: {},
+  audienceByHost: {},
+  toneByHost: {},
+  rewriteHistory: []
 };
 
 export async function getSettings() {
@@ -17,7 +21,10 @@ export async function getSettings() {
     ...DEFAULTS,
     ...stored,
     slotDefaults: { ...DEFAULTS.slotDefaults, ...(stored.slotDefaults || {}) },
-    favoritePhrases: Array.isArray(stored.favoritePhrases) ? stored.favoritePhrases : []
+    favoritePhrases: Array.isArray(stored.favoritePhrases) ? stored.favoritePhrases : [],
+    audienceByHost: { ...(stored.audienceByHost || {}) },
+    toneByHost: { ...(stored.toneByHost || {}) },
+    rewriteHistory: Array.isArray(stored.rewriteHistory) ? stored.rewriteHistory.slice(0, 10) : []
   };
 }
 
@@ -58,7 +65,38 @@ export function detectPlatform(url = "") {
   if (host.includes("linkedin.com")) return "linkedin";
   if (host.includes("slack.com")) return "slack";
   if (host.includes("whatsapp.com")) return "whatsapp";
+  if (host.includes("teams.microsoft.com")) return "teams";
   return "unknown";
+}
+
+export function hostFromUrl(url = "") {
+  try {
+    return new URL(url).hostname.replace(/^www\./, "").toLowerCase();
+  } catch {
+    return "";
+  }
+}
+
+/** Built-in audience when the user has not chosen one on this site. */
+export function defaultAudienceForHost(host = "") {
+  const h = String(host).toLowerCase();
+  if (h.includes("mail.google.com") || h === "gmail.com") return "client";
+  if (h.includes("teams.microsoft.com")) return "peer";
+  return "peer";
+}
+
+export function resolveAudience(settings, url = "") {
+  const host = hostFromUrl(url);
+  const saved = host && settings?.audienceByHost?.[host];
+  if (saved) return saved;
+  return defaultAudienceForHost(host);
+}
+
+export function resolveTone(settings, url = "") {
+  const host = hostFromUrl(url);
+  const saved = host && settings?.toneByHost?.[host];
+  if (saved) return saved;
+  return "formal";
 }
 
 /** Map host platform → Write Q1 id */
@@ -70,6 +108,7 @@ export function platformToQ1(platform) {
       return "linkedin";
     case "slack":
     case "whatsapp":
+    case "teams":
       return "slack";
     default:
       return null;

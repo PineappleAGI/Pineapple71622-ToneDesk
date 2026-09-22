@@ -51,35 +51,39 @@ ToneDesk appears in your extensions list with a speech-bubble icon.
 2. Click the **ToneDesk** icon in the Chrome toolbar — the **side panel** opens
 3. Prefer a floating window? Tap **Pop out** in the panel header
 
-You'll see four tabs: **Rewrite**, **Write**, **Phrases**, and **Find**.
+You'll see three tabs: **Rewrite**, **Write**, and **Phrases**. The search bar filters whichever tab you're on.
 
 There's also a shortcut on the page itself: focus any compose box and a small ToneDesk button appears beside it.
 
-### Rewrite — fix something you already wrote
+### Rewrite — match the tone to the reader
 
-1. Highlight the text on the page, then tap **Use selection** (or paste a draft into the box)
-2. Pick a tone: **Softer**, **More formal**, **Shorter**, **Warmer**, or **Original tone**
-3. **Copy** it, or **Insert** it straight into the compose box
+1. Pick a tone (Formal, Warm, Direct, Concise, Confident, Diplomatic) and an audience
+2. Highlight text on the page, or paste a draft
+3. Read the before/after diff and **Why this edit**, then **Copy** or **Insert**
 
-Tap **← New rewrite** to start over with a fresh selection.
+The search bar filters tones. Tone and audience are remembered per site (Gmail starts on Client/External, Teams on Peer/Colleague). Alt+Shift+R rewrites the current selection.
 
 ### Write — build a draft from scratch
 
 Answer three questions:
 
-1. **What are you writing?** — reply / new email / LinkedIn / Slack·WhatsApp
-2. **What's the situation?** — options adapt to your first answer
-3. **Who are you talking to?** — boss / peer / junior / client / stranger
+1. **What are you writing?** — reply / new email / LinkedIn / Slack·WhatsApp / **Job Search**
+2. **What's the situation?** — options adapt to your first answer. Job Search includes outreach, thank-yous, referrals, and offers
+3. **Who are you talking to?** — Job Search defaults to Recruiter/Hiring Manager
 
 You get a full draft. Tap the highlighted `[slots]` to fill in names and details, switch tone with **More formal** / **Shorter** / **Warmer**, then copy or insert.
 
 ### Phrases — a bank of proven lines
 
-Browse categories like Openers, Soft Disagreements, Delivering Bad News, and Closers. **Copy**, **Insert**, or ★ favorite any line. Favorites are saved on your machine.
+Browse categories like Openers, Job Search & Networking, Following Up, and Requests. Openers, Following Up, and Requests start expanded. **Copy**, **Insert**, or ★ favorite any line. Favorites are saved on your machine.
 
-### Find — search the phrase bank
+### Search
 
-Type in the top bar (`follow up`, `say no`, `apologize`, `request`) for the five closest matches.
+The bar at the top filters the tab you're on:
+
+- **Rewrite** — tones such as softer, formal, shorter, or warmer
+- **Write** — situations (`follow up`, `say no`) and who you're writing to
+- **Phrases** — the phrase bank (`apologize`, `request`, `follow up`)
 
 ---
 
@@ -90,7 +94,7 @@ Type in the top bar (`follow up`, `say no`, `apologize`, `request`) for the five
 | **Rewrite** | Retones selected or pasted text — softer, formal, shorter, or warmer |
 | **Write** | Three-question flow → template draft with `[slots]` and tone variants |
 | **Phrases** | Browsable bank of professional openers, acknowledgments, pushback, and closers |
-| **Find** | Fuzzy search across the phrase bank, with intent hints for queries like "say no" |
+| **Search** | Filters the active tab — rewrite tones, write situations, or phrases |
 | **Copy / Insert** | Copy to clipboard, or drop the text into the compose box you were using |
 | **Optional AI polish** | If Chrome's built-in on-device AI is available, drafts get an extra polish pass |
 
